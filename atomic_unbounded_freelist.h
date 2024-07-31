@@ -128,7 +128,6 @@ sync(ChunkType*& ptr) noexcept {
 
     metaChunk* mem = (metaChunk*)((uint8_t*)ptr - sizeof(meta_data<>));
 
-    /// TODO: Check for revision
     bucket_ptr sync_bucket { nullptr };
     mem->_meta_data.release(sync_bucket);
     sync_bucket->sync(mem);

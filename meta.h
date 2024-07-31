@@ -26,6 +26,10 @@
     template <typename dataT>                                                   \
     member_type nukes::atomic_stack_base<dataT>::
 
+#define ATOMIC_MPMC_QUEUE_BASE_MEMBER(member_type)                              \
+    template<typename dataT>                                                    \
+    member_type nukes::atomic_queue_base<dataT>::
+
 
 #endif // NUKES_META
 
