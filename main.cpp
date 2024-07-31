@@ -1,0 +1,311 @@
+#include <cassert>
+#include <csignal>
+#include <cstdlib>
+#include <exception>
+#include <iostream>
+#include <iterator>
+#include <mutex>
+#include <vector>
+#include <thread>
+#include <algorithm>
+
+#include "atomic_stack_base.h"
+#include "atomic_bounded_stack.h"
+#include "atomic_stack.h"
+#include "atomic_bounded_freelist.h"
+#include "atomic_unbounded_freelist.h"
+
+inline constexpr size_t thread_count = 12;
+inline constexpr size_t data_volume = 100000;
+inline constexpr size_t stack_data_size = thread_count * (data_volume / 2);
+
+nukes::atomic_stack_base<int> g_stack{};
+nukes::atomic_bounded_stack<int, data_volume> g_bounded_stack{};
+nukes::atomic_bounded_freelist<int, data_volume> g_freelist{};
+aba_atomic_stack_base<int> g_aba_stack{};
+
+std::string g_stack_name = {"update atomic stack"};
+
+static void sighandler(int signum) {
+    std::cout << "memory corruption case detected for " + g_stack_name << std::endl;
+    exit(EXIT_FAILURE);
+}
+
+void thread_function() {
+    int arr [data_volume] = {};
+    int arr_i = 0;
+    
+    for (int i, k =0; i < data_volume; ++i) {
+        if (i % 2 == 0) {
+            g_stack.push_new(i);
+        } else {
+            g_stack.pop_new(k);
+            arr[arr_i++] = k;
+        }
+    }
+
+    for (int i =0; i < arr_i; ++i) {
+        g_stack.push_new(arr[i]);
+    }
+}
+
+
+void bounded_stack_thread_function() {
+    int arr [data_volume] = {};
+    int arr_i = 0;
+    
+    for (int i, k =0; i < data_volume; ++i) {
+        if (i % 2 == 0) {
+            g_bounded_stack.push(i);
+        } else {
+            g_bounded_stack.pop(k);
+            arr[arr_i++] = k;
+        }
+    }
+
+    for (int i =0; i < arr_i; ++i) {
+        g_bounded_stack.push(arr[i]);
+    }
+}
+
+
+void freelist_thread_function() {
+    ulong arr [data_volume] = {};
+    int arr_i = 0;
+    
+    int* mem { nullptr };
+    while (g_freelist.capture(mem)) {
+        arr[arr_i] = (ulong)mem;
+        ++arr_i;
+    }
+
+    for (int i =0; i < arr_i; ++i) {
+        mem = (int*)(arr[i]);
+        g_freelist.sync(mem);
+    }
+
+}
+
+
+void aba_thread_function() {
+    int arr [data_volume] = {};
+    int arr_i = 0;
+    
+    for (int i, k =0; i < data_volume; ++i) {
+        if (i % 2 == 0) {
+            g_aba_stack.push_new(i);
+        } else {
+            g_aba_stack.pop_new(k);
+            arr[arr_i++] = k;
+        }
+    }
+
+    for (int i =0; i < arr_i; ++i) {
+        g_aba_stack.push_new(arr[i]);
+    }
+}
+
+#define __LIBATOMIC_SUPPORTS_I16	1
+
+
+int main() {
+
+    nukes::atomic_unbounded_freelist<int> a;
+    int* ptr;
+    a.capture(ptr);
+
+    *ptr = 5;
+
+    std::cout << *ptr << std::endl;
+    std::cout << (ulong)ptr << std::endl;
+    
+    a.sync(ptr);
+
+    std::cout << (ulong)ptr << std::endl;
+
+    
+    // nukes::meta_data m;
+    // m[0] = 1;
+    // std::cout << sizeof(nukes::meta_data) << std::endl;
+    // std::cout << (int)m[0] << std::endl;
+    
+    // std::cout << std::atomic<void*>::is_always_lock_free << std::endl;
+    // std::cout << std::atomic<node_dptr>::is_always_lock_free << std::endl;
+    // std::cout << std::atomic<node_ss_ptr>::is_always_lock_free << std::endl;    
+    // auto a = node_dptr{};
+    // std::cout << sizeof(node_dptr) << std::endl;
+    // std::cout << __atomic_is_lock_free(16, 0) << std::endl;
+    
+    struct sigaction sa;
+    sa.sa_handler = sighandler;
+    sigaction(SIGSEGV, &sa, NULL);
+    sigaction(SIGTERM, &sa, NULL);
+    sigaction(SIGABRT, &sa, NULL);
+
+    std::cout << "Check for A-B-A for upgraded atomic stack" << std::endl;
+
+    std::vector<std::thread> threads;
+    threads.reserve(thread_count);
+    for (int i =0; i < thread_count; ++i) {
+        threads.emplace_back(thread_function);
+    }
+
+    for (auto& e : threads) e.join();
+    threads.clear();
+
+    std::vector<int> stack_contains {};
+    stack_contains.reserve(stack_data_size);
+
+    for (int i =0, output =0; i < stack_data_size; ++i) {
+        stack_contains.emplace_back((g_stack.pop_new(output), output));
+    }
+
+    std::sort(stack_contains.begin(), stack_contains.end());
+
+    int cnt {}, now_val {};
+    while (cnt < stack_data_size) {
+        const auto local_cnt = cnt % thread_count;
+        const auto curr_val = stack_contains.at(cnt);
+        if (0 == local_cnt) now_val = curr_val;
+        else if (curr_val != now_val) {
+            std::cout << "A-B-A case detected for upgraded atomic stack" << std::endl;
+            break;
+        }
+        ++cnt;
+    }
+
+    if (cnt == stack_data_size)
+        std::cout << "no A-B-A case detected for upgraded atomic stack" << std::endl;
+    
+    assert(stack_contains.size() == stack_data_size);
+    stack_contains.clear();
+
+/// ========================
+
+    std::cout << "Check for A-B-A for upgraded atomic bounded stack" << std::endl;
+
+    threads.reserve(thread_count);
+    for (int i =0; i < thread_count; ++i) {
+        threads.emplace_back(thread_function);
+    }
+
+    for (auto& e : threads) e.join();
+    threads.clear();
+
+    for (int i =0, output =0; i < stack_data_size; ++i) {
+        stack_contains.emplace_back((g_stack.pop_new(output), output));
+    }
+
+    std::sort(stack_contains.begin(), stack_contains.end());
+
+    cnt =0, now_val =0;
+    while (cnt < stack_data_size) {
+        const auto local_cnt = cnt % thread_count;
+        const auto curr_val = stack_contains.at(cnt);
+        if (0 == local_cnt) now_val = curr_val;
+        else if (curr_val != now_val) {
+            std::cout << "A-B-A case detected for upgraded atomic bounded stack" << std::endl;
+            break;
+        }
+        ++cnt;
+    }
+
+    if (cnt == stack_data_size)
+        std::cout << "no A-B-A case detected for upgraded atomic bounded stack" << std::endl;
+    
+    assert(stack_contains.size() == stack_data_size);
+
+/// ========================
+
+    std::cout << "Check for consistancy for freelist" << std::endl;
+
+    g_stack_name = "freelist";
+    
+    for (int i =0; i < thread_count; ++i) {
+        threads.emplace_back(freelist_thread_function);
+    }
+
+    for (auto& e : threads) e.join();
+    threads.clear();
+
+    std::vector<ulong> allocated_adresses {};
+    allocated_adresses.reserve(data_volume);
+
+    for (int i =0; i < data_volume ; ++i) {
+        int* mem { nullptr };
+        g_freelist.capture(mem);
+        allocated_adresses.emplace_back((ulong)mem);
+    }
+    
+    std::sort(allocated_adresses.begin(), allocated_adresses.end());
+    
+    for (int i =0; i < (data_volume -1); ++i) {
+        if ((allocated_adresses.at(i) + sizeof(nukes::mem_node<int>)) not_eq allocated_adresses.at(i+1)) {
+            std::cout << "freelist inconcistant cause: "
+                      << allocated_adresses.at(i) + sizeof(nukes::mem_node<int>) << " != "
+                      << allocated_adresses.at(i+1) << " | STEP: "
+                      << i << std::endl;
+            return EXIT_FAILURE;
+        }
+    }
+
+    const uint64_t g_fl_memaddr_beg = (uint64_t)(g_freelist.ptr_by_idx(0)),
+                   g_fl_memaddr_end = (uint64_t)(g_freelist.ptr_by_idx(data_volume - 1)),
+                   l_memaddr_beg = allocated_adresses.at(0),
+                   l_memaddr_end = allocated_adresses.at(data_volume - 1);
+
+    if ((data_volume - 1) not_eq g_freelist.idx_by_ptr(g_freelist.ptr_by_idx(data_volume - 1))) {
+        std::cout << "memaddr and buffidx mapping is incorrect" << std::endl;
+        return EXIT_FAILURE;
+    } else if (g_fl_memaddr_beg not_eq l_memaddr_beg or
+               g_fl_memaddr_end not_eq l_memaddr_end) {
+        std::cout << "freelist is inconcistant in common" << std::endl;
+        std::cout << "fl buf addr beg: " << g_fl_memaddr_beg << '\t' << "local addr beg: " << l_memaddr_beg << std::endl;
+        std::cout << "fl buf addr end: " << g_fl_memaddr_end << '\t' << "local addr end: " << l_memaddr_end << std::endl;
+        return EXIT_FAILURE;
+    } else std::cout << "freelist is consistant" << std::endl;
+
+
+    assert(stack_contains.size() == stack_data_size);
+    
+    // ==============
+
+    g_stack_name = "classic atomic stack";
+    
+    std::cout << "Check for A-B-A for classic atomic stack" << std::endl;
+
+    for (int i =0; i < thread_count; ++i) {
+        threads.emplace_back(aba_thread_function);
+    }
+
+    for (auto& e : threads) e.join();
+    threads.clear();
+
+    stack_contains.clear();
+    stack_contains.reserve(stack_data_size);
+
+    for (int i =0, output =0; i < stack_data_size; ++i) {
+        stack_contains.emplace_back((g_stack.pop_new(output), output));
+    }
+
+    std::sort(stack_contains.begin(), stack_contains.end());
+
+    cnt  =0; now_val =0;
+    while (cnt < stack_data_size) {
+        const auto local_cnt = cnt % thread_count;
+        const auto curr_val = stack_contains.at(cnt);
+        if (0 == local_cnt) now_val = curr_val;
+        else if (curr_val != now_val) {
+            std::cout << "A-B-A case detected for classic atomic stack" << std::endl;
+            break;
+        }
+        ++cnt;
+    }
+
+    if (cnt == stack_data_size)
+        std::cout << "no A-B-A case detected for classic atomic stack" << std::endl;
+    
+    assert(stack_contains.size() == stack_data_size);
+    
+    return 0;
+}
