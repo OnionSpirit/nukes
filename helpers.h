@@ -39,7 +39,7 @@ using fn_forward_t = fn_forward<T>::type;
 
 template <size_t DataSize = 8UL> requires (0 == DataSize % 8)
 struct alignas(DataSize) meta_data {
-    uint8_t& operator [](uint8_t idx) {
+    [[nodiscard]] uint8_t& operator [](uint8_t idx) {
         return *((uint8_t*)this + (idx % 8));
     }
 

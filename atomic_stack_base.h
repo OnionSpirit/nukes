@@ -23,13 +23,13 @@ protected:
 
 public:
     
-    bool push_new(fn_forward_t<dataT> data);
+    [[nodiscard]] bool push_new(fn_forward_t<dataT> data);
         
-    bool pop_new(dataT& data);
+    [[nodiscard]] bool pop_new(dataT& data);
     
-    bool push_node(fn_forward_t<node_t> node) noexcept;
+    [[nodiscard]] bool push_node(fn_forward_t<node_t> node) noexcept;
         
-    bool pop_node(node_t& node) noexcept;
+    [[nodiscard]] bool pop_node(node_t& node) noexcept;
 };
 
 

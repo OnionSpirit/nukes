@@ -47,16 +47,16 @@ protected:
 
     bucket _basic_bucket {};
 
+    std::atomic_flag _allocation_in_progress = ATOMIC_FLAG_INIT;
+
     bucket_node _basic_bucket_node {
         ._next       = &_basic_bucket_node,
         ._bucket_ptr = &_basic_bucket
     };
 
-    std::atomic_flag _allocation_in_progress = ATOMIC_FLAG_INIT;
-
     std::atomic<bucket_node*> _current_bucket_node { &_basic_bucket_node };
 
-    std::atomic<bucket_node*> _last_bucket_node { &_basic_bucket_node };
+    std::atomic<bucket_node*> _last_bucket_node    { &_basic_bucket_node };
     
     static void allocate_bucket_node(bucket_node*& node);
 
@@ -68,9 +68,9 @@ public:
 
     ~atomic_unbounded_freelist();
     
-    bool sync(ChunkType*& ptr) noexcept;
+    [[nodiscard]] bool sync(ChunkType*& ptr) noexcept;
         
-    bool capture(ChunkType*& ptr) noexcept;
+    [[nodiscard]] bool capture(ChunkType*& ptr) noexcept;
 };
 
 
@@ -130,10 +130,10 @@ sync(ChunkType*& ptr) noexcept {
 
     bucket_ptr sync_bucket { nullptr };
     mem->_meta_data.release(sync_bucket);
-    sync_bucket->sync(mem);
+    const bool res = sync_bucket->sync(mem);
     
     ptr = nullptr;
-    return true;
+    return res;
 }
 
 

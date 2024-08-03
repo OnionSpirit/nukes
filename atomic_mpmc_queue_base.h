@@ -18,18 +18,18 @@ namespace nukes {
 
     
 /**
- * @details atomic_queue base class
- * @tparam Data Type that assumed to be used in the queue
+ * @details atomic mpmc queue base class
+ * @tparam dataT Type that assumed to be used in the queue
  */
 template <typename dataT>
-struct atomic_queue_base {
+struct atomic_mpmc_queue_base {
     
 protected:
 
     typedef dyn_node<dataT> node;                ///< Node type declaration
     
-    std::atomic<dyn_node_hdl> _head { &_dummy }; ///< Head pointer
-    std::atomic<dyn_node_hdl> _tail { &_dummy }; ///< Tail pointer
+    std::atomic<dyn_node_hdl> _head {}; ///< Head pointer
+    std::atomic<dyn_node_hdl> _tail {}; ///< Tail pointer
 
     node _dummy {};                              ///< Dummy node instance
     
@@ -42,9 +42,9 @@ protected:
 
 public:
     
-    atomic_queue_base() = default;
-
-    virtual ~atomic_queue_base() = default;
+    atomic_mpmc_queue_base() noexcept;
+    
+    virtual ~atomic_mpmc_queue_base() = default;
 
     /**
      * @details Atomically pushes element to the queue with allocation
@@ -90,6 +90,19 @@ public:
 
 
 // ================================ DEFINITIONS ================================
+
+
+ATOMIC_MPMC_QUEUE_BASE_MEMBER()
+atomic_mpmc_queue_base() noexcept {
+
+    const dyn_node_hdl initial_hdl {
+        ._node = &_dummy,
+        ._tag  = 0
+    };
+    
+    _head.store(initial_hdl);
+    _tail.store(initial_hdl);
+};
 
 
 ATOMIC_MPMC_QUEUE_BASE_MEMBER(bool)

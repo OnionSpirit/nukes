@@ -21,7 +21,7 @@ protected:
     typedef mem_node<ChunkType> chunk_node_t;
     typedef std::atomic<stc_node_hdl> node_hdl_t;
     
-    node_hdl_t _top           {};
+    node_hdl_t   _top           {};
     chunk_node_t _buffer[ssize] {};
 
 public:
@@ -30,17 +30,17 @@ public:
     
     ~atomic_bounded_freelist() noexcept =default;
     
-    ChunkType* ptr_by_idx(uint32_t idx) noexcept;
+    [[nodiscard]] ChunkType* ptr_by_idx(uint32_t idx) noexcept;
 
-    uint32_t idx_by_ptr(ChunkType* ptr) const noexcept;
+    [[nodiscard]] uint32_t idx_by_ptr(ChunkType* ptr) const noexcept;
     
-    bool sync_idx(uint32_t& idx) noexcept;
+    [[nodiscard]] bool sync_idx(uint32_t& idx) noexcept;
     
-    bool capture_idx(uint32_t& idx) noexcept;
+    [[nodiscard]] bool capture_idx(uint32_t& idx) noexcept;
     
-    bool sync(ChunkType*& ptr) noexcept;
+    [[nodiscard]] bool sync(ChunkType*& ptr) noexcept;
     
-    bool capture(ChunkType*& ptr) noexcept;
+    [[nodiscard]] bool capture(ChunkType*& ptr) noexcept;
 };
 
 

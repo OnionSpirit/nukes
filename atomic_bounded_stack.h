@@ -29,9 +29,9 @@ public:
 
     ~atomic_bounded_stack() noexcept =default;
 
-    bool push(fn_forward_t<dataT> data) noexcept;
+    [[nodiscard]] bool push(fn_forward_t<dataT> data) noexcept;
         
-    bool pop(dataT& data) noexcept;
+    [[nodiscard]] bool pop(dataT& data) noexcept;
 };
 
 
@@ -45,7 +45,7 @@ ATOMIC_BOUNDED_STACK_MEMBER(bool)
 push(fn_forward_t<dataT> data) noexcept {
 
     node_t* new_node {nullptr};
-    _free_nodes.capture(new_node);
+    const bool res = _free_nodes.capture(new_node);
     if (not new_node) [[unlikely]] return false;
     
     new_node->_data = std::forward<dataT>(data);
@@ -57,7 +57,7 @@ push(fn_forward_t<dataT> data) noexcept {
         new_node->_next.store(top_hdl);
     } while (not _top.compare_exchange_weak(top_hdl, new_top_hdl));
     
-    return true;
+    return res;
 }
 
 
@@ -78,8 +78,7 @@ pop(dataT &data) noexcept {
     } while (not _top.compare_exchange_weak(top_hdl, new_top_hdl));
 
     data = node->_data;
-    _free_nodes.sync_idx(top_hdl._node_idx);
-    return true;
+    return _free_nodes.sync_idx(top_hdl._node_idx);
 }
 
 

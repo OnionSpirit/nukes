@@ -9,11 +9,14 @@
 #include <thread>
 #include <algorithm>
 
+#include "atomic_mpmc_queue_base.h"
+#include "atomic_mpsc_queue_base.h"
 #include "atomic_stack_base.h"
 #include "atomic_bounded_stack.h"
 #include "atomic_stack.h"
 #include "atomic_bounded_freelist.h"
 #include "atomic_unbounded_freelist.h"
+#include "atomic_unbounded_stack.h"
 
 inline constexpr size_t thread_count = 12;
 inline constexpr size_t data_volume = 100000;
@@ -21,8 +24,14 @@ inline constexpr size_t stack_data_size = thread_count * (data_volume / 2);
 
 nukes::atomic_stack_base<int> g_stack{};
 nukes::atomic_bounded_stack<int, data_volume> g_bounded_stack{};
+nukes::atomic_unbounded_stack<int> g_unbounded_stack{};
 nukes::atomic_bounded_freelist<int, data_volume> g_freelist{};
+nukes::atomic_unbounded_freelist<int> g_unbounded_freelist{};
+
 aba_atomic_stack_base<int> g_aba_stack{};
+
+nukes::atomic_mpmc_queue_base<int> g_mpmc_basic_q{};
+nukes::atomic_mpsc_queue_base<int> g_mpsc_basic_q{};
 
 std::string g_stack_name = {"update atomic stack"};
 
@@ -37,15 +46,15 @@ void thread_function() {
     
     for (int i, k =0; i < data_volume; ++i) {
         if (i % 2 == 0) {
-            g_stack.push_new(i);
+            bool res = g_stack.push_new(i);
         } else {
-            g_stack.pop_new(k);
+            bool res = g_stack.pop_new(k);
             arr[arr_i++] = k;
         }
     }
 
     for (int i =0; i < arr_i; ++i) {
-        g_stack.push_new(arr[i]);
+        bool res = g_stack.push_new(arr[i]);
     }
 }
 
@@ -56,15 +65,15 @@ void bounded_stack_thread_function() {
     
     for (int i, k =0; i < data_volume; ++i) {
         if (i % 2 == 0) {
-            g_bounded_stack.push(i);
+            bool res = g_bounded_stack.push(i);
         } else {
-            g_bounded_stack.pop(k);
+            bool res = g_bounded_stack.pop(k);
             arr[arr_i++] = k;
         }
     }
 
     for (int i =0; i < arr_i; ++i) {
-        g_bounded_stack.push(arr[i]);
+        bool res = g_bounded_stack.push(arr[i]);
     }
 }
 
@@ -81,7 +90,7 @@ void freelist_thread_function() {
 
     for (int i =0; i < arr_i; ++i) {
         mem = (int*)(arr[i]);
-        g_freelist.sync(mem);
+        bool res = g_freelist.sync(mem);
     }
 
 }
@@ -112,14 +121,14 @@ int main() {
 
     nukes::atomic_unbounded_freelist<int> a;
     int* ptr;
-    a.capture(ptr);
+    bool res = a.capture(ptr);
 
     *ptr = 5;
 
     std::cout << *ptr << std::endl;
     std::cout << (ulong)ptr << std::endl;
     
-    a.sync(ptr);
+    res = a.sync(ptr);
 
     std::cout << (ulong)ptr << std::endl;
 
@@ -157,7 +166,7 @@ int main() {
     stack_contains.reserve(stack_data_size);
 
     for (int i =0, output =0; i < stack_data_size; ++i) {
-        stack_contains.emplace_back((g_stack.pop_new(output), output));
+        stack_contains.emplace_back((res = g_stack.pop_new(output), output));
     }
 
     std::sort(stack_contains.begin(), stack_contains.end());
@@ -193,7 +202,7 @@ int main() {
     threads.clear();
 
     for (int i =0, output =0; i < stack_data_size; ++i) {
-        stack_contains.emplace_back((g_stack.pop_new(output), output));
+        stack_contains.emplace_back((res = g_stack.pop_new(output), output));
     }
 
     std::sort(stack_contains.begin(), stack_contains.end());
@@ -233,7 +242,7 @@ int main() {
 
     for (int i =0; i < data_volume ; ++i) {
         int* mem { nullptr };
-        g_freelist.capture(mem);
+        res = g_freelist.capture(mem);
         allocated_adresses.emplace_back((ulong)mem);
     }
     
@@ -285,7 +294,7 @@ int main() {
     stack_contains.reserve(stack_data_size);
 
     for (int i =0, output =0; i < stack_data_size; ++i) {
-        stack_contains.emplace_back((g_stack.pop_new(output), output));
+        stack_contains.emplace_back((res = g_stack.pop_new(output), output));
     }
 
     std::sort(stack_contains.begin(), stack_contains.end());
