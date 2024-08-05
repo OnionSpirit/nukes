@@ -19,13 +19,13 @@ template
     
     size_t BucketByteSize =
         constants::ufl_memory_offset
-      + sizeof(meta_chunk<dataT>) * 64,
+      + sizeof(meta_chunk<dyn_node<dataT>, 8>) * 64,
 
     void* (mem_alloc) (size_t) = malloc,
     
     void  (mem_free)  (void*)  = free
 >
-struct alignas(8) atomic_unbounded_stack {
+struct atomic_unbounded_stack {
 
 protected:
     

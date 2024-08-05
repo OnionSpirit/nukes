@@ -13,7 +13,7 @@ namespace nukes {
 
 
 template <typename dataT>
-struct alignas(8) atomic_stack_base {
+struct atomic_stack_base {
 
 protected:
 

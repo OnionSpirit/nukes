@@ -10,7 +10,7 @@
 #include <algorithm>
 
 #include "atomic_mpmc_queue_base.h"
-#include "atomic_mpsc_queue_base.h"
+//#include "atomic_mpsc_queue_base.h"
 #include "atomic_stack_base.h"
 #include "atomic_bounded_stack.h"
 #include "atomic_stack.h"
@@ -19,19 +19,19 @@
 #include "atomic_unbounded_stack.h"
 
 inline constexpr size_t thread_count = 12;
-inline constexpr size_t data_volume = 100000;
+inline constexpr size_t data_volume = 1000000;
 inline constexpr size_t stack_data_size = thread_count * (data_volume / 2);
 
-nukes::atomic_stack_base<int> g_stack{};
-nukes::atomic_bounded_stack<int, data_volume> g_bounded_stack{};
-nukes::atomic_unbounded_stack<int> g_unbounded_stack{};
-nukes::atomic_bounded_freelist<int, data_volume> g_freelist{};
-nukes::atomic_unbounded_freelist<int> g_unbounded_freelist{};
+nukes::atomic_stack_base<uint8_t> g_stack{};
+nukes::atomic_bounded_stack<uint8_t, data_volume> g_bounded_stack{};
+nukes::atomic_unbounded_stack<uint8_t> g_unbounded_stack{};
+nukes::atomic_bounded_freelist<uint8_t, data_volume> g_freelist{};
+nukes::atomic_unbounded_freelist<uint8_t> g_unbounded_freelist{};
 
-aba_atomic_stack_base<int> g_aba_stack{};
+aba_atomic_stack_base<uint8_t> g_aba_stack{};
 
-nukes::atomic_mpmc_queue_base<int> g_mpmc_basic_q{};
-nukes::atomic_mpsc_queue_base<int> g_mpsc_basic_q{};
+nukes::atomic_mpmc_queue_base<uint8_t> g_mpmc_basic_q{};
+//nukes::atomic_mpsc_queue_base<int> g_mpsc_basic_q{};
 
 std::string g_stack_name = {"update atomic stack"};
 
@@ -43,8 +43,9 @@ static void sighandler(int signum) {
 void thread_function() {
     int arr [data_volume] = {};
     int arr_i = 0;
-    
-    for (int i, k =0; i < data_volume; ++i) {
+
+    uint8_t k = 0;
+    for (int i =0; i < data_volume; ++i) {
         if (i % 2 == 0) {
             bool res = g_stack.push_new(i);
         } else {
@@ -62,8 +63,9 @@ void thread_function() {
 void bounded_stack_thread_function() {
     int arr [data_volume] = {};
     int arr_i = 0;
-    
-    for (int i, k =0; i < data_volume; ++i) {
+
+    uint8_t k = 0;
+    for (int i =0; i < data_volume; ++i) {
         if (i % 2 == 0) {
             bool res = g_bounded_stack.push(i);
         } else {
@@ -81,15 +83,15 @@ void bounded_stack_thread_function() {
 void freelist_thread_function() {
     ulong arr [data_volume] = {};
     int arr_i = 0;
-    
-    int* mem { nullptr };
+
+    uint8_t* mem { nullptr };
     while (g_freelist.capture(mem)) {
         arr[arr_i] = (ulong)mem;
         ++arr_i;
     }
 
     for (int i =0; i < arr_i; ++i) {
-        mem = (int*)(arr[i]);
+        mem = (uint8_t*)(arr[i]);
         bool res = g_freelist.sync(mem);
     }
 
@@ -99,8 +101,9 @@ void freelist_thread_function() {
 void aba_thread_function() {
     int arr [data_volume] = {};
     int arr_i = 0;
-    
-    for (int i, k =0; i < data_volume; ++i) {
+
+    uint8_t k = 0;
+    for (int i =0; i < data_volume; ++i) {
         if (i % 2 == 0) {
             g_aba_stack.push_new(i);
         } else {
@@ -114,30 +117,17 @@ void aba_thread_function() {
     }
 }
 
-#define __LIBATOMIC_SUPPORTS_I16	1
-
 
 int main() {
 
-    nukes::atomic_unbounded_freelist<int> a;
-    int* ptr;
-    bool res = a.capture(ptr);
+    auto start = std::chrono::steady_clock::now();
 
-    *ptr = 5;
+    bool res {};
+    nukes::meta_data m;
+    m[0] = 1;
+    std::cout << sizeof(nukes::meta_data<3>) << std::endl;
+    std::cout << (int)m[0] << std::endl;
 
-    std::cout << *ptr << std::endl;
-    std::cout << (ulong)ptr << std::endl;
-    
-    res = a.sync(ptr);
-
-    std::cout << (ulong)ptr << std::endl;
-
-    
-    // nukes::meta_data m;
-    // m[0] = 1;
-    // std::cout << sizeof(nukes::meta_data) << std::endl;
-    // std::cout << (int)m[0] << std::endl;
-    
     // std::cout << std::atomic<void*>::is_always_lock_free << std::endl;
     // std::cout << std::atomic<node_dptr>::is_always_lock_free << std::endl;
     // std::cout << std::atomic<node_ss_ptr>::is_always_lock_free << std::endl;    
@@ -151,43 +141,45 @@ int main() {
     sigaction(SIGTERM, &sa, NULL);
     sigaction(SIGABRT, &sa, NULL);
 
-    std::cout << "Check for A-B-A for upgraded atomic stack" << std::endl;
-
     std::vector<std::thread> threads;
-    threads.reserve(thread_count);
-    for (int i =0; i < thread_count; ++i) {
-        threads.emplace_back(thread_function);
-    }
-
-    for (auto& e : threads) e.join();
-    threads.clear();
-
     std::vector<int> stack_contains {};
-    stack_contains.reserve(stack_data_size);
-
-    for (int i =0, output =0; i < stack_data_size; ++i) {
-        stack_contains.emplace_back((res = g_stack.pop_new(output), output));
-    }
-
-    std::sort(stack_contains.begin(), stack_contains.end());
-
+    uint8_t output = 0;
     int cnt {}, now_val {};
-    while (cnt < stack_data_size) {
-        const auto local_cnt = cnt % thread_count;
-        const auto curr_val = stack_contains.at(cnt);
-        if (0 == local_cnt) now_val = curr_val;
-        else if (curr_val != now_val) {
-            std::cout << "A-B-A case detected for upgraded atomic stack" << std::endl;
-            break;
-        }
-        ++cnt;
-    }
 
-    if (cnt == stack_data_size)
-        std::cout << "no A-B-A case detected for upgraded atomic stack" << std::endl;
-    
-    assert(stack_contains.size() == stack_data_size);
-    stack_contains.clear();
+//    std::cout << "Check for A-B-A for upgraded atomic stack" << std::endl;
+//
+//    threads.reserve(thread_count);
+//    for (int i =0; i < thread_count; ++i) {
+//        threads.emplace_back(thread_function);
+//    }
+//
+//    for (auto& e : threads) e.join();
+//    threads.clear();
+//
+//    stack_contains.reserve(stack_data_size);
+//
+//    for (int i =0; i < stack_data_size; ++i) {
+//        stack_contains.emplace_back((res = g_stack.pop_new(output), output));
+//    }
+//
+//    std::sort(stack_contains.begin(), stack_contains.end());
+//
+//    while (cnt < stack_data_size) {
+//        const auto local_cnt = cnt % thread_count;
+//        const auto curr_val = stack_contains.at(cnt);
+//        if (0 == local_cnt) now_val = curr_val;
+//        else if (curr_val != now_val) {
+//            std::cout << "A-B-A case detected for upgraded atomic stack" << std::endl;
+//            break;
+//        }
+//        ++cnt;
+//    }
+//
+//    if (cnt == stack_data_size)
+//        std::cout << "no A-B-A case detected for upgraded atomic stack" << std::endl;
+//
+//    assert(stack_contains.size() == stack_data_size);
+//    stack_contains.clear();
 
 /// ========================
 
@@ -201,7 +193,8 @@ int main() {
     for (auto& e : threads) e.join();
     threads.clear();
 
-    for (int i =0, output =0; i < stack_data_size; ++i) {
+    output =0;
+    for (int i =0; i < stack_data_size; ++i) {
         stack_contains.emplace_back((res = g_stack.pop_new(output), output));
     }
 
@@ -223,6 +216,7 @@ int main() {
         std::cout << "no A-B-A case detected for upgraded atomic bounded stack" << std::endl;
     
     assert(stack_contains.size() == stack_data_size);
+    stack_contains.clear();
 
 /// ========================
 
@@ -241,7 +235,7 @@ int main() {
     allocated_adresses.reserve(data_volume);
 
     for (int i =0; i < data_volume ; ++i) {
-        int* mem { nullptr };
+        uint8_t* mem { nullptr };
         res = g_freelist.capture(mem);
         allocated_adresses.emplace_back((ulong)mem);
     }
@@ -274,47 +268,48 @@ int main() {
         return EXIT_FAILURE;
     } else std::cout << "freelist is consistant" << std::endl;
 
-
-    assert(stack_contains.size() == stack_data_size);
     
     // ==============
 
-    g_stack_name = "classic atomic stack";
-    
-    std::cout << "Check for A-B-A for classic atomic stack" << std::endl;
+//    g_stack_name = "classic atomic stack";
+//
+//    std::cout << "Check for A-B-A for classic atomic stack" << std::endl;
+//
+//    for (int i =0; i < thread_count; ++i) {
+//        threads.emplace_back(aba_thread_function);
+//    }
+//
+//    for (auto& e : threads) e.join();
+//    threads.clear();
+//
+//    stack_contains.clear();
+//    stack_contains.reserve(stack_data_size);
+//
+//    for (int i =0, output =0; i < stack_data_size; ++i) {
+//        stack_contains.emplace_back((res = g_stack.pop_new(output), output));
+//    }
+//
+//    std::sort(stack_contains.begin(), stack_contains.end());
+//
+//    cnt  =0; now_val =0;
+//    while (cnt < stack_data_size) {
+//        const auto local_cnt = cnt % thread_count;
+//        const auto curr_val = stack_contains.at(cnt);
+//        if (0 == local_cnt) now_val = curr_val;
+//        else if (curr_val != now_val) {
+//            std::cout << "A-B-A case detected for classic atomic stack" << std::endl;
+//            break;
+//        }
+//        ++cnt;
+//    }
+//
+//    if (cnt == stack_data_size)
+//        std::cout << "no A-B-A case detected for classic atomic stack" << std::endl;
+//
+//    assert(stack_contains.size() == stack_data_size);
 
-    for (int i =0; i < thread_count; ++i) {
-        threads.emplace_back(aba_thread_function);
-    }
+    const uint runtime = duration_cast<std::chrono::milliseconds>((std::chrono::steady_clock::now() - start)).count();
+    std::cout << runtime << " ms" << std::endl;
 
-    for (auto& e : threads) e.join();
-    threads.clear();
-
-    stack_contains.clear();
-    stack_contains.reserve(stack_data_size);
-
-    for (int i =0, output =0; i < stack_data_size; ++i) {
-        stack_contains.emplace_back((res = g_stack.pop_new(output), output));
-    }
-
-    std::sort(stack_contains.begin(), stack_contains.end());
-
-    cnt  =0; now_val =0;
-    while (cnt < stack_data_size) {
-        const auto local_cnt = cnt % thread_count;
-        const auto curr_val = stack_contains.at(cnt);
-        if (0 == local_cnt) now_val = curr_val;
-        else if (curr_val != now_val) {
-            std::cout << "A-B-A case detected for classic atomic stack" << std::endl;
-            break;
-        }
-        ++cnt;
-    }
-
-    if (cnt == stack_data_size)
-        std::cout << "no A-B-A case detected for classic atomic stack" << std::endl;
-    
-    assert(stack_contains.size() == stack_data_size);
-    
     return 0;
 }

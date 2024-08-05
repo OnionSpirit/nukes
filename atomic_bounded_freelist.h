@@ -14,7 +14,7 @@ namespace nukes {
 
 
 template <typename ChunkType, uint32_t ssize = 1024>
-struct alignas(8) atomic_bounded_freelist {
+struct atomic_bounded_freelist {
 
 protected:
     

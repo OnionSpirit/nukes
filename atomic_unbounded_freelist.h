@@ -20,18 +20,18 @@ template
     
     size_t BucketByteSize =
         constants::ufl_memory_offset
-      + sizeof(meta_chunk<ChunkType>) * 64,
+      + sizeof(meta_chunk<ChunkType, 8>) * 64,
 
     void* (mem_alloc) (size_t) = malloc,
     
     void  (mem_free)  (void*)  = free
 >
-requires (constants::ufl_memory_offset + sizeof(meta_chunk<ChunkType>) <= BucketByteSize)
+requires (constants::ufl_memory_offset + sizeof(meta_chunk<ChunkType, 8>) <= BucketByteSize)
 struct atomic_unbounded_freelist {
 
 protected:
     
-    typedef meta_chunk<ChunkType> metaChunk;
+    typedef meta_chunk<ChunkType, 8> metaChunk;
 
     static constexpr size_t meta_chunk_count =
         (BucketByteSize - constants::ufl_memory_offset) / sizeof(metaChunk); ///< Wanted to fit whole bucket_node
