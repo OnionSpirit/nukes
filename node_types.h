@@ -23,7 +23,7 @@ struct alignas(4) stc_node_hdl {
 
 template <typename dataT>
 struct dyn_node
-    : public atomic_typedef_mixin<dyn_node_hdl> {
+    : private atomic_typedef_mixin<dyn_node_hdl> {
 
     atomic_t                                           _next {};
     alignas(constants::word_alignment<dataT>) dataT    _data {};
