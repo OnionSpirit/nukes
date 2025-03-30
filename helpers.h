@@ -56,6 +56,10 @@ namespace nukes {
         T &release(T &target) {
             return target = *reinterpret_cast<T *>(this);
         }
+
+        // NOTE: Преобразование метаданных под запрашиваемый тип
+        template<typename T>
+        T& release() { return *reinterpret_cast<T *>(this); }
     };
 
 

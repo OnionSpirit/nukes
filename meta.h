@@ -4,8 +4,13 @@
 
 
 #define ATOMIC_BOUNDED_FREELIST_MEMBER(member_type)                             \
-    template <typename ChunkType, uint32_t ssize>                               \
-    member_type nukes::atomic_bounded_freelist<ChunkType, ssize>::
+    template <typename ChunkType, uint32_t lenV>                                \
+    member_type nukes::atomic_bounded_freelist<ChunkType, lenV>::
+
+#define ATOMIC_RINGBUF_MEMBER(member_type)                                      \
+    template <typename ChunkType, uint32_t lenV>                                \
+    member_type nukes::atomic_ringbuf<ChunkType, lenV>::
+
 
 
 #define ATOMIC_UNBOUNDED_FREELIST_MEMBER(member_type)                           \

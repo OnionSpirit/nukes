@@ -7,6 +7,7 @@
 #include "meta.h"
 #include "node_types.h"
 #include "atomic_bounded_freelist.h"
+#include "atomic_ringbuf.h"
 
 
 

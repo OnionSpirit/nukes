@@ -23,6 +23,10 @@ inline constexpr size_t word_alignment = sizeof(T) < machine_word_size
         ? machine_word_size
         : std::bit_ceil(sizeof(T));
 
+// NOTE: Спец значение используемое для режима аллокации внутренних буферов в конструкторе
+inline constexpr uint32_t runtime_discover = 0;
+
+inline constexpr size_t bucket_meta_data = 8; ///< Handles bucket ptr
 
 } // end namespace nukes::constants
 
