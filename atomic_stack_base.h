@@ -18,17 +18,17 @@ struct atomic_stack_base {
 protected:
 
     typedef dyn_node<dataT> node_t;
-    
+
     std::atomic<dyn_node_hdl> _top {};
 
 public:
-    
+
     [[nodiscard]] bool push_new(fn_forward_t<dataT> data);
-        
+
     [[nodiscard]] bool pop_new(dataT& data);
-    
+
     [[nodiscard]] bool push_node(fn_forward_t<node_t> node) noexcept;
-        
+
     [[nodiscard]] bool pop_node(node_t& node) noexcept;
 };
 
@@ -46,14 +46,14 @@ push_new(fn_forward_t<dataT> data) {
     new_node->_data = std::forward<dataT>(data);
 
     dyn_node_hdl new_top_tag_hdl, top_tag_hdl = _top.load();
-    
+
     new_top_tag_hdl._node = new_node;
-    
+
     do {
         new_top_tag_hdl._tag = top_tag_hdl._tag + 1;
         new_node->_next.store(top_tag_hdl);
     } while (not _top.compare_exchange_weak(top_tag_hdl, new_top_tag_hdl));
-    
+
     return true;
 }
 
@@ -62,7 +62,7 @@ ATOMIC_STACK_BASE_MEMBER(bool)
 pop_new(dataT &data) {
 
     dyn_node_hdl new_top_tag_hdl, top_tag_hdl = _top.load();
-    
+
     do {
         if (not top_tag_hdl._node) return false;
         new_top_tag_hdl._tag = top_tag_hdl._tag + 1;
@@ -79,14 +79,14 @@ ATOMIC_STACK_BASE_MEMBER(bool)
 push_node(fn_forward_t<node_t> node) noexcept {
 
     dyn_node_hdl new_top_tag_hdl, top_tag_hdl = _top.load();
-    
+
     new_top_tag_hdl._node = &node;
-    
+
     do {
         new_top_tag_hdl._tag = top_tag_hdl._tag + 1;
         node._next.store(top_tag_hdl);
     } while (not _top.compare_exchange_weak(top_tag_hdl, new_top_tag_hdl));
-    
+
     return true;
 }
 
@@ -95,7 +95,7 @@ ATOMIC_STACK_BASE_MEMBER(bool)
 pop_node(node_t &node) noexcept {
 
     dyn_node_hdl new_top_tag_hdl, top_tag_hdl = _top.load();
-    
+
     do {
         if (not top_tag_hdl._node) return false;
         new_top_tag_hdl._tag = top_tag_hdl._tag + 1;

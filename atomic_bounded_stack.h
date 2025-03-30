@@ -17,11 +17,11 @@ template <typename dataT, uint32_t ssize = 1024>
 struct atomic_bounded_stack {
 
 protected:
-    
+
     typedef stc_node<dataT> node_t;
 
-    std::atomic<stc_node_hdl> _top {};
-    atomic_bounded_freelist<node_t, ssize> _free_nodes {};
+    std::atomic<stc_node_hdl> _top {}; // NOTE: Квази-указатель вершины
+    atomic_bounded_freelist<node_t, ssize> _free_nodes {}; // NOTE: pool аллокатор для хранения памяти под узлы
 
 public:
 
@@ -30,7 +30,7 @@ public:
     ~atomic_bounded_stack() noexcept =default;
 
     [[nodiscard]] bool push(fn_forward_t<dataT> data) noexcept;
-        
+
     [[nodiscard]] bool pop(dataT& data) noexcept;
 };
 
@@ -47,16 +47,16 @@ push(fn_forward_t<dataT> data) noexcept {
     node_t* new_node {nullptr};
     const bool res = _free_nodes.capture(new_node);
     if (not new_node) [[unlikely]] return false;
-    
+
     new_node->_data = std::forward<dataT>(data);
-    stc_node_hdl new_top_hdl, top_hdl = _top.load();      
+    stc_node_hdl new_top_hdl, top_hdl = _top.load();
     new_top_hdl._node_idx = _free_nodes.idx_by_ptr(new_node);
-    
+
     do {
         new_top_hdl._tag = top_hdl._tag + 1;
         new_node->_next.store(top_hdl);
     } while (not _top.compare_exchange_weak(top_hdl, new_top_hdl));
-    
+
     return res;
 }
 
@@ -66,7 +66,7 @@ pop(dataT &data) noexcept {
 
     stc_node_hdl new_top_hdl, top_hdl = _top.load();
     node_t* node { nullptr };
-    
+
     do { if (top_hdl._node_idx == UINT32_MAX) [[unlikely]] return false;
 
         node

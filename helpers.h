@@ -11,27 +11,25 @@
 namespace nukes {
 
 
+    // NOTE: Mixin класс для алиасинга атомарного типа
     template<typename NextType>
-    struct atomic_typedef_mixin {
-        typedef std::atomic<NextType> atomic_t;
-    };
+    struct atomic_typedef_mixin { typedef std::atomic<NextType> atomic_t; };
 
-
-    consteval size_t min_2_power (size_t len) { return std::bit_ceil(len); }
-
-
+    // NOTE: Вспомогательный тип для определения наиболее дешевой по памяти сигнатуры функций
     template<typename T>
     class fn_forward {
 
-        static constexpr bool rvalue_assign_type =
+        // NOTE: Проверка может ли объект типа копироваться или только переноситься
+        static constexpr bool is_rvalue_type =
                 not std::is_copy_assignable_v<T>
                 and std::is_move_assignable_v<T>;
 
-        static constexpr bool is_short_type = sizeof(T) <= 8;
+        // NOTE: Проверка является ли тип меньше чем размер машинного слова
+        static constexpr bool is_short_type = sizeof(T) <= constants::machine_word_size;
 
     public:
 
-        typedef std::conditional_t<rvalue_assign_type, T &&,
+        typedef std::conditional_t<is_rvalue_type, T &&,
                 std::conditional_t<is_short_type, T, T &>
         > type;
     };
@@ -40,17 +38,20 @@ namespace nukes {
     using fn_forward_t = fn_forward<T>::type;
 
 
+    // NOTE: Тип метаданных, для хранения рабочей информации непосредственно в сущности узла
     template<size_t DataSize = constants::machine_word_size>
-    struct alignas(min_2_power(DataSize)) meta_data {
+    struct alignas(constants::min_2_power(DataSize)) meta_data {
         [[nodiscard]] uint8_t &operator[](uint8_t idx) {
             return *((uint8_t *) this + (idx % 8));
         }
 
+        // NOTE: Оператор присвоения данных к виду метаданных
         template<typename T>
         T &operator=(T data) requires (sizeof(T) <= std::bit_ceil(DataSize)) {
             return *reinterpret_cast<T *>(this) = data;
         }
 
+        // NOTE: Преобразование метаданных под запрашиваемый тип
         template<typename T>
         T &release(T &target) {
             return target = *reinterpret_cast<T *>(this);
@@ -58,10 +59,11 @@ namespace nukes {
     };
 
 
+    // NOTE: Тип для хранения данных вместе с метаданными и внутренним выравниванием по машинному слову
     template<typename ChunkType, size_t MetaSize = constants::machine_word_size>
     struct meta_chunk {
-        meta_data<min_2_power(MetaSize)>                        _meta_data {};
-        alignas(constants::word_alignment<ChunkType>) ChunkType _mem       {};
+        meta_data<constants::min_2_power(MetaSize)>              _meta_data {};
+        alignas(constants::word_alignment<ChunkType>) ChunkType  _mem       {};
     };
 
 
