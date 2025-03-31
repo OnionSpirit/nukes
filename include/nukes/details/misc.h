@@ -1,5 +1,5 @@
-#ifndef NUKES_HELPERS
-#define NUKES_HELPERS
+#ifndef NUKES_MISC
+#define NUKES_MISC
 
 #include <atomic>
 #include <bit>
@@ -8,7 +8,7 @@
 
 
 
-namespace nukes {
+namespace nukes::details::misc {
 
 
     // NOTE: Mixin класс для алиасинга атомарного типа
@@ -25,7 +25,7 @@ namespace nukes {
                 and std::is_move_assignable_v<T>;
 
         // NOTE: Проверка является ли тип меньше чем размер машинного слова
-        static constexpr bool is_short_type = sizeof(T) <= constants::machine_word_size;
+        static constexpr bool is_short_type = sizeof(T) <= constants::word_size;
 
     public:
 
@@ -39,7 +39,7 @@ namespace nukes {
 
 
     // NOTE: Тип метаданных, для хранения рабочей информации непосредственно в сущности узла
-    template<size_t DataSize = constants::machine_word_size>
+    template<size_t DataSize = constants::word_size>
     struct alignas(constants::min_2_power(DataSize)) meta_data {
         [[nodiscard]] uint8_t &operator[](uint8_t idx) {
             return *((uint8_t *) this + (idx % 8));
@@ -64,7 +64,7 @@ namespace nukes {
 
 
     // NOTE: Тип для хранения данных вместе с метаданными и внутренним выравниванием по машинному слову
-    template<typename ChunkType, size_t MetaSize = constants::machine_word_size>
+    template<typename ChunkType, size_t MetaSize = constants::word_size>
     struct meta_chunk {
         meta_data<constants::min_2_power(MetaSize)>              _meta_data {};
         alignas(constants::word_alignment<ChunkType>) ChunkType  _mem       {};
@@ -74,4 +74,4 @@ namespace nukes {
 } // end namespace nukes
 
 
-#endif // NUKES_HELPERS
+#endif // NUKES_MISC

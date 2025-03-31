@@ -9,14 +9,14 @@
 #include <thread>
 #include <algorithm>
 
-#include "atomic_mpmc_queue_base.h"
+#include "include/nukes/unbounded/atomic_mpmc_queue_base.h"
 //#include "atomic_mpsc_queue_base.h"
 #include "atomic_stack_base.h"
-#include "atomic_bounded_stack.h"
+#include "include/nukes/bounded/atomic_bounded_stack.h"
 #include "atomic_stack.h"
-#include "atomic_bounded_freelist.h"
-#include "atomic_unbounded_freelist.h"
-#include "atomic_unbounded_stack.h"
+#include "nukes/pool/atomic_lifo_pool.h"
+#include "include/nukes/pool/atomic_freelist.h"
+#include "include/nukes/unbounded/atomic_unbounded_stack.h"
 
 inline constexpr size_t thread_count = 12;
 inline constexpr size_t data_volume = 1000000;
@@ -25,8 +25,8 @@ inline constexpr size_t stack_data_size = thread_count * (data_volume / 2);
 nukes::atomic_stack_base<uint8_t> g_stack{};
 nukes::atomic_bounded_stack<uint8_t, data_volume> g_bounded_stack{};
 nukes::atomic_unbounded_stack<uint8_t> g_unbounded_stack{};
-nukes::atomic_bounded_freelist<uint8_t, data_volume> g_freelist{};
-nukes::atomic_unbounded_freelist<uint8_t> g_unbounded_freelist{};
+nukes::pool::atomic_lifo_pool<uint8_t, data_volume> g_freelist{};
+nukes::pool::atomic_freelist<uint8_t> g_unbounded_freelist{};
 
 aba_atomic_stack_base<uint8_t> g_aba_stack{};
 
@@ -123,18 +123,18 @@ int main() {
     auto start = std::chrono::steady_clock::now();
 
     bool res {};
-    nukes::meta_data m;
+    nukes::details::misc::meta_data m;
     m[0] = 1;
-    std::cout << sizeof(nukes::meta_data<3>) << std::endl;
+    std::cout << sizeof(nukes::details::misc::meta_data<3>) << std::endl;
     std::cout << (int)m[0] << std::endl;
 
     // std::cout << std::atomic<void*>::is_always_lock_free << std::endl;
     // std::cout << std::atomic<node_dptr>::is_always_lock_free << std::endl;
-    // std::cout << std::atomic<node_ss_ptr>::is_always_lock_free << std::endl;    
+    // std::cout << std::atomic<node_ss_ptr>::is_always_lock_free << std::endl;
     // auto a = node_dptr{};
     // std::cout << sizeof(node_dptr) << std::endl;
     // std::cout << __atomic_is_lock_free(16, 0) << std::endl;
-    
+
     struct sigaction sa;
     sa.sa_handler = sighandler;
     sigaction(SIGSEGV, &sa, NULL);
@@ -214,7 +214,7 @@ int main() {
 
     if (cnt == stack_data_size)
         std::cout << "no A-B-A case detected for upgraded atomic bounded stack" << std::endl;
-    
+
     assert(stack_contains.size() == stack_data_size);
     stack_contains.clear();
 
@@ -223,7 +223,7 @@ int main() {
     std::cout << "Check for consistancy for freelist" << std::endl;
 
     g_stack_name = "freelist";
-    
+
     for (int i =0; i < thread_count; ++i) {
         threads.emplace_back(freelist_thread_function);
     }
@@ -239,13 +239,13 @@ int main() {
         res = g_freelist.capture(mem);
         allocated_adresses.emplace_back((ulong)mem);
     }
-    
+
     std::sort(allocated_adresses.begin(), allocated_adresses.end());
-    
+
     for (int i =0; i < (data_volume -1); ++i) {
-        if ((allocated_adresses.at(i) + sizeof(nukes::mem_node<int>)) not_eq allocated_adresses.at(i+1)) {
+        if ((allocated_adresses.at(i) + sizeof(nukes::details::nodes::mem_node<int>)) not_eq allocated_adresses.at(i+1)) {
             std::cout << "freelist inconcistant cause: "
-                      << allocated_adresses.at(i) + sizeof(nukes::mem_node<int>) << " != "
+                      << allocated_adresses.at(i) + sizeof(nukes::details::nodes::mem_node<int>) << " != "
                       << allocated_adresses.at(i+1) << " | STEP: "
                       << i << std::endl;
             return EXIT_FAILURE;
@@ -268,7 +268,7 @@ int main() {
         return EXIT_FAILURE;
     } else std::cout << "freelist is consistant" << std::endl;
 
-    
+
     // ==============
 
 //    g_stack_name = "classic atomic stack";

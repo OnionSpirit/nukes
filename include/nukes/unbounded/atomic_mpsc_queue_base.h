@@ -8,9 +8,8 @@
 
 #include <atomic>
 
-#include "helpers.h"
-#include "meta.h"
-#include "node_types.h"
+#include "nukes/details/node_types.h"
+#include "nukes/details/misc.h"
 
 
 
@@ -89,6 +88,10 @@ public:
 
 
 // ================================ DEFINITIONS ================================
+
+#define ATOMIC_MPSC_QUEUE_BASE_MEMBER(member_type)                              \
+    template<typename dataT>                                                    \
+    member_type nukes::atomic_mpsc_queue_base<dataT>::
 
 
 ATOMIC_MPSC_QUEUE_BASE_MEMBER()

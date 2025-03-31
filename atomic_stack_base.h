@@ -3,9 +3,9 @@
 
 #include <atomic>
 
-#include "helpers.h"
+#include "nukes/details/misc.h"
+#include "nukes/details/node_types.h"
 #include "meta.h"
-#include "node_types.h"
 
 
 
@@ -17,17 +17,17 @@ struct atomic_stack_base {
 
 protected:
 
-    typedef dyn_node<dataT> node_t;
+    typedef details::nodes::dyn_node<dataT> node_t;
 
-    std::atomic<dyn_node_hdl> _top {};
+    std::atomic<details::nodes::dyn_node_hdl> _top {};
 
 public:
 
-    [[nodiscard]] bool push_new(fn_forward_t<dataT> data);
+    [[nodiscard]] bool push_new(details::misc::fn_forward_t<dataT> data);
 
     [[nodiscard]] bool pop_new(dataT& data);
 
-    [[nodiscard]] bool push_node(fn_forward_t<node_t> node) noexcept;
+    [[nodiscard]] bool push_node(details::misc::fn_forward_t<node_t> node) noexcept;
 
     [[nodiscard]] bool pop_node(node_t& node) noexcept;
 };
@@ -38,14 +38,18 @@ public:
 
 // ================================ DEFINITIONS ================================
 
+#define ATOMIC_STACK_BASE_MEMBER(member_type)                                   \
+    template <typename dataT>                                                   \
+    member_type nukes::atomic_stack_base<dataT>::
+
 
 ATOMIC_STACK_BASE_MEMBER(bool)
-push_new(fn_forward_t<dataT> data) {
+push_new(details::misc::fn_forward_t<dataT> data) {
 
     node_t* new_node = new node_t();
     new_node->_data = std::forward<dataT>(data);
 
-    dyn_node_hdl new_top_tag_hdl, top_tag_hdl = _top.load();
+    details::nodes::dyn_node_hdl new_top_tag_hdl, top_tag_hdl = _top.load();
 
     new_top_tag_hdl._node = new_node;
 
@@ -61,7 +65,7 @@ push_new(fn_forward_t<dataT> data) {
 ATOMIC_STACK_BASE_MEMBER(bool)
 pop_new(dataT &data) {
 
-    dyn_node_hdl new_top_tag_hdl, top_tag_hdl = _top.load();
+    details::nodes::dyn_node_hdl new_top_tag_hdl, top_tag_hdl = _top.load();
 
     do {
         if (not top_tag_hdl._node) return false;
@@ -76,9 +80,9 @@ pop_new(dataT &data) {
 
 
 ATOMIC_STACK_BASE_MEMBER(bool)
-push_node(fn_forward_t<node_t> node) noexcept {
+push_node(details::misc::fn_forward_t<node_t> node) noexcept {
 
-    dyn_node_hdl new_top_tag_hdl, top_tag_hdl = _top.load();
+    details::nodes::dyn_node_hdl new_top_tag_hdl, top_tag_hdl = _top.load();
 
     new_top_tag_hdl._node = &node;
 
@@ -94,7 +98,7 @@ push_node(fn_forward_t<node_t> node) noexcept {
 ATOMIC_STACK_BASE_MEMBER(bool)
 pop_node(node_t &node) noexcept {
 
-    dyn_node_hdl new_top_tag_hdl, top_tag_hdl = _top.load();
+    details::nodes::dyn_node_hdl new_top_tag_hdl, top_tag_hdl = _top.load();
 
     do {
         if (not top_tag_hdl._node) return false;

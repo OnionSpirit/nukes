@@ -31,7 +31,7 @@ protected:
 
 public:
 
-    bool push_new(nukes::fn_forward_t<dataT> data) {
+    bool push_new(nukes::details::misc::fn_forward_t<dataT> data) {
 
         node_t* new_node = new node_t();
         new_node->_data = std::forward<dataT>(data);

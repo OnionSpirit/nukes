@@ -1,55 +1,61 @@
-#ifndef NUKES_ATOMIC_UNBOUNDED_FREELIST
-#define NUKES_ATOMIC_UNBOUNDED_FREELIST
+#ifndef NUKES_ATOMIC_FREELIST
+#define NUKES_ATOMIC_FREELIST
 
 #include <atomic>
+#include <cstddef>
 #include <thread>
 
-#include "constants.h"
-#include "helpers.h"
-#include "meta.h"
-#include "node_types.h"
-#include "atomic_bounded_freelist.h"
-#include "atomic_ringbuf.h"
+#include "nukes/details/constants.h"
+#include "nukes/details/node_types.h"
+#include "nukes/details/misc.h"
+#include "atomic_lifo_pool.h"
+#include "atomic_fifo_pool.h"
 
 
-
-namespace nukes {
+namespace nukes::pool {
 
 
 template
 <
-    typename ChunkType,
+    typename dataT,
 
-    size_t bytes_per_bucketV =
-        constants::bucket_meta_data
-      + sizeof(meta_chunk<ChunkType, constants::bucket_meta_data>) * 64,
+    size_t bytesPerBucketV =
+        details::constants::bucket_meta_data
+      + sizeof(details::misc::meta_chunk<dataT, details::constants::bucket_meta_data>) * 64,
+
+    template <typename, size_t> typename bufferT = atomic_lifo_pool,
 
     void* (mem_alloc) (size_t) = malloc,
 
     void  (mem_free)  (void*)  = free
 >
-class atomic_unbounded_freelist {
+class atomic_freelist {
 
-    typedef meta_chunk<ChunkType, constants::bucket_meta_data> bucket_chunk_t; ///< Bucket chunk with metadata (Source bucket ptr) support
+    typedef details::misc::meta_chunk<dataT, details::constants::bucket_meta_data> bucket_chunk_t; ///< Bucket chunk with metadata (Source bucket ptr) support
 
     template <size_t sizeV>
-    using bucket_trait_t = atomic_bounded_freelist<bucket_chunk_t, 1>; ///< Trait to declare different forms of bucket depending on size
+    using bucket_buf_t = bufferT<bucket_chunk_t, sizeV>; ///< Bucket metatype with custom size
 
-    static constexpr size_t bucket_control_data_size = sizeof(bucket_trait_t<1>); ///< Size of memory buffer structure with single element
+    static constexpr size_t bucket_control_data_size = sizeof(bucket_buf_t<1>); ///< Size of memory buffer structure with single element
 
-    static_assert(constants::bucket_meta_data
+    static_assert(std::same_as<bucket_buf_t<1>, atomic_fifo_pool<bucket_chunk_t, 1>>
+                  or std::same_as<bucket_buf_t<1>, atomic_lifo_pool<bucket_chunk_t, 1>>,
+                  "Only 'atomic_fifo_pool' and 'atomic_lifo_pool' pools allowed as 'bucket' basis"
+                  );
+
+    static_assert(details::constants::bucket_meta_data
                   + bucket_control_data_size
-                  <= bytes_per_bucketV,
+                  <= bytesPerBucketV,
                   "memory with bytes_per_bucketV size is not enough to emplace bucket for requested chunk_t there");
 
     static constexpr size_t bucket_chunk_count =
-        (bytes_per_bucketV
-         - constants::bucket_meta_data
+        (bytesPerBucketV
+         - details::constants::bucket_meta_data
          - bucket_control_data_size
          ) / sizeof(bucket_chunk_t); ///< Count of chunks per bucket including list and chunk metadata,
                                      ///< bucket control data size, that can fit into bytes_per_bucketV memory chunk
 
-    typedef bucket_trait_t<bucket_chunk_count> bucket_t;
+    typedef bucket_buf_t<bucket_chunk_count> bucket_t;
     typedef bucket_t* bucket_ptr;
 
     struct alignas(8) bucket_node {
@@ -57,9 +63,11 @@ class atomic_unbounded_freelist {
         bucket_t                  _bucket { };         ///< Bucket instance first machine word
     };
 
+private:
+
     bucket_node initial_bucket_node {}; ///< Static allocated first bucket node
 
-    bucket_node* /* const */ _bucket_list_head { &initial_bucket_node }; ///< Bucket list first node
+    bucket_node* const _bucket_list_head { &initial_bucket_node }; ///< Bucket list first node
 
     std::atomic<bucket_node*> _bucket_list_tail { &initial_bucket_node }; ///< Bucket list last node
 
@@ -73,21 +81,28 @@ class atomic_unbounded_freelist {
 
 public:
 
-    atomic_unbounded_freelist(size_t buckets_count = 1);
+    atomic_freelist(size_t buckets_count = 1);
 
-    ~atomic_unbounded_freelist();
+    ~atomic_freelist();
 
-    [[nodiscard]] bool sync(ChunkType*& ptr) noexcept;
+    [[nodiscard]] bool sync(dataT*& ptr) noexcept;
 
-    [[nodiscard]] bool capture(ChunkType*& ptr) noexcept;
+    [[nodiscard]] bool capture(dataT*& ptr) noexcept;
 };
 
 
 // ================================ DEFINITIONS ================================
 
+#define ATOMIC_FREELIST_MEMBER(member_type)                             \
+    template <typename dataT, size_t bytes_per_bucketV,                 \
+              template <typename, size_t> typename bufferT,             \
+              void *(mem_alloc)(size_t), void(mem_free)(void *)>        \
+    member_type nukes::pool::atomic_freelist <dataT,                    \
+                                              bytes_per_bucketV, bufferT, mem_alloc, mem_free>::
 
-ATOMIC_UNBOUNDED_FREELIST_MEMBER()
-atomic_unbounded_freelist(size_t buckets_count) {
+
+ATOMIC_FREELIST_MEMBER()
+atomic_freelist(size_t buckets_count) {
 
     // NOTE: Создаём указатели на текущий и предыдущий узлы
     bucket_node* prev = _bucket_list_head;
@@ -107,8 +122,8 @@ atomic_unbounded_freelist(size_t buckets_count) {
 }
 
 
-ATOMIC_UNBOUNDED_FREELIST_MEMBER()
-~atomic_unbounded_freelist() {
+ATOMIC_FREELIST_MEMBER()
+~atomic_freelist() {
 
     // NOTE: Записываем текущий узел как следующий от головного
     bucket_node* curr = _bucket_list_head->_next.load(std::memory_order_consume);
@@ -121,7 +136,7 @@ ATOMIC_UNBOUNDED_FREELIST_MEMBER()
 }
 
 
-ATOMIC_UNBOUNDED_FREELIST_MEMBER(void)
+ATOMIC_FREELIST_MEMBER(void)
 allocate_bucket_node(bucket_node*& node) {
 
     // NOTE: Выделяем блок памяти под бакет и сохраняем указатель
@@ -134,7 +149,7 @@ allocate_bucket_node(bucket_node*& node) {
 }
 
 
-ATOMIC_UNBOUNDED_FREELIST_MEMBER(void)
+ATOMIC_FREELIST_MEMBER(void)
 deallocate_bucket_node(bucket_node*& node) {
 
     uint8_t bucket [bytes_per_bucketV] = reinterpret_cast<uint8_t*>(node);
@@ -143,11 +158,11 @@ deallocate_bucket_node(bucket_node*& node) {
 }
 
 
-ATOMIC_UNBOUNDED_FREELIST_MEMBER(bool)
-sync(ChunkType*& ptr) noexcept {
+ATOMIC_FREELIST_MEMBER(bool)
+sync(dataT*& ptr) noexcept {
 
     // NOTE: Преносим указатель на размер метаданных и интерпретируем этот как указатель на чанк
-    bucket_chunk_t* mem = (bucket_chunk_t*)((uint8_t*)ptr - sizeof(constants::bucket_meta_data));
+    bucket_chunk_t* mem = (bucket_chunk_t*)((uint8_t*)ptr - sizeof(details::constants::bucket_meta_data));
 
     // NOTE: Создаём указатель на бакет
     bucket_ptr sync_bucket { nullptr };
@@ -161,8 +176,8 @@ sync(ChunkType*& ptr) noexcept {
 }
 
 
-ATOMIC_UNBOUNDED_FREELIST_MEMBER(bool)
-capture(ChunkType*& ptr) noexcept {
+ATOMIC_FREELIST_MEMBER(bool)
+capture(dataT*& ptr) noexcept {
 
     // NOTE: Считываем текущий бакет
     bucket_node* current_bucket = _recent_bucket.load(std::memory_order_consume);
@@ -225,5 +240,5 @@ capture(ChunkType*& ptr) noexcept {
 } // end namespace nukes
 
 
-#undef ATOMIC_UNBOUNDED_FREELIST_MEMBER
-#endif // NUKES_ATOMIC_UNBOUNDED_FREELIST
+#undef ATOMIC_FREELIST_MEMBER
+#endif // NUKES_ATOMIC_FREELIST

@@ -1,26 +1,25 @@
-#ifndef NUKES_ATOMIC_BOUNDED_FREELIST
-#define NUKES_ATOMIC_BOUNDED_FREELIST
+#ifndef NUKES_ATOMIC_LIFO_POOL
+#define NUKES_ATOMIC_LIFO_POOL
 
 #include <atomic>
 #include <cstdint>
-#include "helpers.h"
-#include "node_types.h"
-#include "meta.h"
-#include "constants.h"
+#include "nukes/details/constants.h"
+#include "nukes/details/node_types.h"
+#include "nukes/details/misc.h"
 
 
-namespace nukes {
+namespace nukes::pool {
 
 
-template <typename ChunkType, uint32_t lenV = 1024>
-struct atomic_bounded_freelist {
+template <typename dataT, uint32_t lenV = 1024>
+struct atomic_lifo_pool {
 
 protected:
 
 
-    typedef mem_node<ChunkType> chunk_node_t;
-    typedef std::atomic<stc_node_hdl> node_hdl_t;
-    typedef meta_data<lenV * sizeof(chunk_node_t)> storage_t;
+    typedef details::nodes::mem_node<dataT> chunk_node_t;
+    typedef std::atomic<details::nodes::stc_node_hdl> node_hdl_t;
+    typedef details::misc::meta_data<lenV * sizeof(chunk_node_t)> storage_t;
 
     node_hdl_t      _top     {};           // NOTE: Квази-указатель вершины
     chunk_node_t*   _buffer  { nullptr };  // NOTE: Буфер хранения данных
@@ -29,19 +28,19 @@ protected:
 
 public:
 
-    atomic_bounded_freelist() noexcept
-        requires ( lenV != constants::runtime_discover );
+    atomic_lifo_pool() noexcept
+        requires ( lenV != details::constants::runtime_discover );
 
-    atomic_bounded_freelist(uint32_t) noexcept
-        requires ( lenV == constants::runtime_discover );
+    atomic_lifo_pool(uint32_t) noexcept
+        requires ( lenV == details::constants::runtime_discover );
 
-    ~atomic_bounded_freelist() noexcept =default;
+    ~atomic_lifo_pool() noexcept =default;
 
     // NOTE: Выдача указателя на чанк по индексу буфера
-    [[nodiscard]] ChunkType* ptr_by_idx(uint32_t idx) noexcept;
+    [[nodiscard]] dataT* ptr_by_idx(uint32_t idx) noexcept;
 
     // NOTE: Выдача индекса в буфере по указателю на объект
-    [[nodiscard]] uint32_t idx_by_ptr(ChunkType* ptr) const noexcept;
+    [[nodiscard]] uint32_t idx_by_ptr(dataT* ptr) const noexcept;
 
     // NOTE: Освобождение чанка по индексу
     [[nodiscard]] bool sync_idx(uint32_t& idx) noexcept;
@@ -50,10 +49,10 @@ public:
     [[nodiscard]] bool capture_idx(uint32_t& idx) noexcept;
 
     // NOTE: Освобождение переданного чанка
-    [[nodiscard]] bool sync(ChunkType*& ptr) noexcept;
+    [[nodiscard]] bool sync(dataT*& ptr) noexcept;
 
     // NOTE: Захват свободного чанка
-    [[nodiscard]] bool capture(ChunkType*& ptr) noexcept;
+    [[nodiscard]] bool capture(dataT*& ptr) noexcept;
 };
 
 
@@ -62,15 +61,19 @@ public:
 
 // ================================ DEFINITIONS ================================
 
+#define ATOMIC_LIFO_POOL_MEMBER(member_type)                      \
+    template <typename dataT, uint32_t lenV>                    \
+    member_type nukes::pool::atomic_lifo_pool<dataT, lenV>::
 
-ATOMIC_BOUNDED_FREELIST_MEMBER()
-atomic_bounded_freelist() noexcept
-requires ( lenV != constants::runtime_discover ) {
+
+ATOMIC_LIFO_POOL_MEMBER()
+atomic_lifo_pool() noexcept
+requires ( lenV != details::constants::runtime_discover ) {
 
     // NOTE: При статическом определении размера ссылаем указатель буфера на начало хранилища,
     //       их размер соответствует запрошенному через шаблонный параметр
     _buffer = new (&_storage.template release<chunk_node_t>()) chunk_node_t[_len];
-    stc_node_hdl next {._node_idx = 0, ._tag = 0};
+    details::nodes::stc_node_hdl next {._node_idx = 0, ._tag = 0};
     _top.store(next);
     // NOTE: Связывание узлов в буфере
     for (int i =0; i < _len - 1; ++i) {
@@ -79,15 +82,15 @@ requires ( lenV != constants::runtime_discover ) {
     }
 }
 
-ATOMIC_BOUNDED_FREELIST_MEMBER()
-atomic_bounded_freelist(uint32_t l) noexcept
-requires(lenV == constants::runtime_discover)
+ATOMIC_LIFO_POOL_MEMBER()
+atomic_lifo_pool(uint32_t l) noexcept
+requires(lenV == details::constants::runtime_discover)
 : _len(l) {
 
     // NOTE: При динамическом определении размера, аллоцируем на куче нужный размер,
     //       сохраняем указатель в хранилище и записываем его в буфер 
     _buffer = (_storage = new chunk_node_t[_len]).template release<chunk_node_t*>();
-    stc_node_hdl next {._node_idx = 0, ._tag = 0};
+    details::nodes::stc_node_hdl next {._node_idx = 0, ._tag = 0};
     _top.store(next);
     // NOTE: Связывание узлов в буфере
     for (int i =0; i < _len - 1; ++i) {
@@ -97,21 +100,23 @@ requires(lenV == constants::runtime_discover)
 }
 
 
-ATOMIC_BOUNDED_FREELIST_MEMBER(ChunkType*)
+ATOMIC_LIFO_POOL_MEMBER(dataT*)
 ptr_by_idx(uint32_t idx) noexcept {
     return idx < _len ? &(_buffer[idx]._mem) : nullptr;
 }
 
 
-ATOMIC_BOUNDED_FREELIST_MEMBER(uint32_t)
-idx_by_ptr(ChunkType* ptr) const noexcept {
+ATOMIC_LIFO_POOL_MEMBER(uint32_t)
+idx_by_ptr(dataT* ptr) const noexcept {
 
     // NOTE: Вычитаем из абсолютного адреса смещение до адреса начала буфера
     //       и размер квази-указателя на следующий элемент из типа узла,
     //       т.к. при захвате данных выдаём указатель на память под объект, а узлы буфера хранят:
     //       (квази-указатель на следующий элемент + память под объект)
     const uint64_t normalized_addr
-        { ((uint64_t)ptr - (uint64_t)&_buffer[0] - sizeof(typename mem_node<ChunkType>::atomic_t)) };
+        { ((uint64_t)ptr
+           - (uint64_t)&_buffer[0]
+           - sizeof(typename details::nodes::mem_node<dataT>::atomic_t)) };
 
     // NOTE: Делим адрес на размер объекта буффера, получаем индекс
     const uint32_t idx
@@ -122,7 +127,7 @@ idx_by_ptr(ChunkType* ptr) const noexcept {
 }
 
 
-ATOMIC_BOUNDED_FREELIST_MEMBER(bool)
+ATOMIC_LIFO_POOL_MEMBER(bool)
 sync_idx(uint32_t &idx) noexcept {
 
     // NOTE: Выходим если индекс превышает размер буфера
@@ -131,7 +136,7 @@ sync_idx(uint32_t &idx) noexcept {
     // NOTE: Указатель освобождаемую память в буфере
     chunk_node_t* new_node = &_buffer[idx];
     // NOTE: Создаём сущности нового узла головы и копию текущей головы
-    stc_node_hdl new_top_hdl, top_hdl = _top.load();
+    details::nodes::stc_node_hdl new_top_hdl, top_hdl = _top.load();
     // Устанавливаем индекс новой головы равный передаваемому индексу для высвобождения
     new_top_hdl._node_idx = idx;
 
@@ -154,11 +159,11 @@ sync_idx(uint32_t &idx) noexcept {
 }
 
 
-ATOMIC_BOUNDED_FREELIST_MEMBER(bool)
+ATOMIC_LIFO_POOL_MEMBER(bool)
 capture_idx(uint32_t& idx) noexcept {
 
     // NOTE: Создаём сущности нового узла головы и копию текущей головы
-    stc_node_hdl new_top_hdl, top_hdl = _top.load();
+    details::nodes::stc_node_hdl new_top_hdl, top_hdl = _top.load();
 
     // NOTE: После каждой неудачной попытки замещения
     //       top_hdl будет обновляться текущей головой
@@ -180,8 +185,8 @@ capture_idx(uint32_t& idx) noexcept {
     return true;
 }
 
-ATOMIC_BOUNDED_FREELIST_MEMBER(bool)
-sync(ChunkType*& ptr) noexcept {
+ATOMIC_LIFO_POOL_MEMBER(bool)
+sync(dataT*& ptr) noexcept {
 
 
     // NOTE: Получаем индекс по указателю
@@ -202,8 +207,8 @@ sync(ChunkType*& ptr) noexcept {
 }
 
 
-ATOMIC_BOUNDED_FREELIST_MEMBER(bool)
-capture(ChunkType*& ptr) noexcept {
+ATOMIC_LIFO_POOL_MEMBER(bool)
+capture(dataT*& ptr) noexcept {
 
     // NOTE: Индекс захваченой памяти
     uint32_t idx {0};
@@ -223,5 +228,5 @@ capture(ChunkType*& ptr) noexcept {
 }
 
 
-#undef ATOMIC_BOUNDED_FREELIST_MEMBER
-#endif // NUKES_ATOMIC_BOUNDED_FREELIST
+#undef ATOMIC_LIFO_POOL_MEMBER
+#endif // NUKES_ATOMIC_LIFO_POOL
