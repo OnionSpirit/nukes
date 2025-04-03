@@ -12,19 +12,19 @@
 #include "include/nukes/unbounded/atomic_mpmc_queue_base.h"
 //#include "atomic_mpsc_queue_base.h"
 #include "atomic_stack_base.h"
-#include "include/nukes/bounded/atomic_bounded_stack.h"
+#include "include/nukes/bounded/atomic_stack.h"
 #include "atomic_stack.h"
 #include "nukes/pool/atomic_lifo_pool.h"
 #include "include/nukes/pool/atomic_freelist.h"
-#include "include/nukes/unbounded/atomic_unbounded_stack.h"
+#include "include/nukes/unbounded/atomic_stack.h"
 
 inline constexpr size_t thread_count = 12;
 inline constexpr size_t data_volume = 1000000;
 inline constexpr size_t stack_data_size = thread_count * (data_volume / 2);
 
 nukes::atomic_stack_base<uint8_t> g_stack{};
-nukes::atomic_bounded_stack<uint8_t, data_volume> g_bounded_stack{};
-nukes::atomic_unbounded_stack<uint8_t> g_unbounded_stack{};
+nukes::bounded::atomic_stack<uint8_t, data_volume> g_bounded_stack{};
+nukes::unbounded::atomic_stack<uint8_t> g_unbounded_stack{};
 nukes::pool::atomic_lifo_pool<uint8_t, data_volume> g_freelist{};
 nukes::pool::atomic_freelist<uint8_t> g_unbounded_freelist{};
 

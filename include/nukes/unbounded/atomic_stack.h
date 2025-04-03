@@ -1,15 +1,14 @@
-#ifndef NUKES_ATOMIC_UNBOUNDED_STACK
-#define NUKES_ATOMIC_UNBOUNDED_STACK
+#ifndef NUKES_UNBOUNDED_ATOMIC_STACK
+#define NUKES_UNBOUNDED_ATOMIC_STACK
 
 #include <atomic>
 
 #include "nukes/details/node_types.h"
 #include "nukes/details/misc.h"
-#include "nukes/pool/atomic_lifo_pool.h"
-#include "nukes/pool/atomic_fifo_pool.h"
+#include "nukes/pool/atomic_freelist.h"
 
 
-namespace nukes {
+namespace nukes::unbounded {
 
 
 template
@@ -24,7 +23,7 @@ template
 
     void  (mem_free)  (void*)  = free
 >
-struct atomic_unbounded_stack {
+struct atomic_stack {
 
 protected:
 
@@ -36,9 +35,9 @@ protected:
 
 public:
 
-    atomic_unbounded_stack() noexcept =default;
+    atomic_stack() noexcept =default;
 
-    ~atomic_unbounded_stack() noexcept =default;
+    ~atomic_stack() noexcept =default;
 
     [[nodiscard]] bool push(details::misc::fn_forward_t<dataT> data) noexcept;
 
@@ -46,24 +45,24 @@ public:
 };
 
 
-} // end namespace nukes
+} // end namespace nukes::unbounded
 
 
 // ================================ DEFINITIONS ================================
 
-#define ATOMIC_UNBOUNDED_STACK_MEMBER(member_type)                              \
-    template                                                                    \
-    <                                                                           \
-        typename dataT,                                                         \
-        size_t bytes_per_bucketV,                                               \
-        void* (mem_alloc) (size_t),                                             \
-        void  (mem_free)  (void*)                                               \
-    >                                                                           \
-    member_type nukes::atomic_unbounded_stack<dataT, bytes_per_bucketV,         \
-                                              mem_alloc, mem_free>::
+#define ATOMIC_STACK_MEMBER(member_type)                                         \
+    template                                                                     \
+    <                                                                            \
+        typename dataT,                                                          \
+        size_t bytes_per_bucketV,                                                \
+        void* (mem_alloc) (size_t),                                              \
+        void  (mem_free)  (void*)                                                \
+    >                                                                            \
+    member_type nukes::unbounded::atomic_stack<dataT, bytes_per_bucketV,         \
+                                               mem_alloc, mem_free>::
 
 
-ATOMIC_UNBOUNDED_STACK_MEMBER(bool)
+ATOMIC_STACK_MEMBER(bool)
 push(details::misc::fn_forward_t<dataT> data) noexcept {
 
     node_t* new_node { nullptr };
@@ -83,7 +82,7 @@ push(details::misc::fn_forward_t<dataT> data) noexcept {
 }
 
 
-ATOMIC_UNBOUNDED_STACK_MEMBER(bool)
+ATOMIC_STACK_MEMBER(bool)
 pop(dataT &data) noexcept {
 
     details::nodes::dyn_node_hdl new_top_tag_hdl, top_tag_hdl = _top.load();
@@ -99,5 +98,5 @@ pop(dataT &data) noexcept {
 }
 
 
-#undef ATOMIC_UNBOUNDED_STACK_MEMBER
-#endif // NUKES_ATOMIC_UNBOUNDED_STACK
+#undef ATOMIC_STACK_MEMBER
+#endif // NUKES_UNBOUNDED_ATOMIC_STACK

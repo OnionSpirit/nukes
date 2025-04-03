@@ -1,5 +1,5 @@
-#ifndef ATOMIC_STACK
-#define ATOMIC_STACK
+#ifndef ATOMIC_STACK_JOKE
+#define ATOMIC_STACK_JOKE
 
 #include <cstdint>
 #include <atomic>
@@ -69,4 +69,4 @@ public:
 };
 
 
-#endif // ATOMIC_STACK
+#endif // ATOMIC_STACK_JOKE
