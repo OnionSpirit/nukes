@@ -30,8 +30,8 @@ protected:
     typedef details::nodes::dyn_node<dataT> node_t;
 
     std::atomic<details::nodes::dyn_node_hdl> _top {};
-    pool::atomic_freelist<node_t, BucketByteSize, pool::atomic_fifo_pool,
-                              mem_alloc, mem_free> _free_nodes {};
+    pool::atomic_freelist_emplaced<node_t, BucketByteSize, pool::atomic_fifo,
+                                   mem_alloc, mem_free> _mempool {};
 
 public:
 
@@ -66,7 +66,7 @@ ATOMIC_STACK_MEMBER(bool)
 push(details::misc::fn_forward_t<dataT> data) noexcept {
 
     node_t* new_node { nullptr };
-    const bool res = _free_nodes.capture(new_node);
+    const bool res = _mempool.capture(new_node);
     new_node->_data = std::forward<dataT>(data);
 
     details::nodes::dyn_node_hdl new_top_tag_hdl, top_tag_hdl = _top.load();
@@ -94,7 +94,7 @@ pop(dataT &data) noexcept {
     } while (not _top.compare_exchange_weak(top_tag_hdl, new_top_tag_hdl));
 
     data = ((node_t*)top_tag_hdl._node)->_data;
-    return _free_nodes.sync((node_t*)top_tag_hdl._node);
+    return _mempool.sync((node_t*)top_tag_hdl._node);
 }
 
 

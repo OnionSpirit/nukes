@@ -9,12 +9,12 @@
 #include <thread>
 #include <algorithm>
 
-#include "include/nukes/unbounded/atomic_mpmc_queue_base.h"
+#include "include/nukes/mpmc_queue.h"
 //#include "atomic_mpsc_queue_base.h"
 #include "atomic_stack_base.h"
 #include "include/nukes/bounded/atomic_stack.h"
 #include "atomic_stack.h"
-#include "nukes/pool/atomic_lifo_pool.h"
+#include "nukes/pool/atomic_lifo.h"
 #include "include/nukes/pool/atomic_freelist.h"
 #include "include/nukes/unbounded/atomic_stack.h"
 
@@ -25,12 +25,12 @@ inline constexpr size_t stack_data_size = thread_count * (data_volume / 2);
 nukes::atomic_stack_base<uint8_t> g_stack{};
 nukes::bounded::atomic_stack<uint8_t, data_volume> g_bounded_stack{};
 nukes::unbounded::atomic_stack<uint8_t> g_unbounded_stack{};
-nukes::pool::atomic_lifo_pool<uint8_t, data_volume> g_freelist{};
+nukes::pool::atomic_lifo<uint8_t, data_volume> g_freelist{};
 nukes::pool::atomic_freelist<uint8_t> g_unbounded_freelist{};
 
 aba_atomic_stack_base<uint8_t> g_aba_stack{};
 
-nukes::atomic_mpmc_queue_base<uint8_t> g_mpmc_basic_q{};
+nukes::mpmc_queue<uint8_t> g_mpmc_basic_q{};
 //nukes::atomic_mpsc_queue_base<int> g_mpsc_basic_q{};
 
 std::string g_stack_name = {"update atomic stack"};

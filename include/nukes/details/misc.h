@@ -70,6 +70,15 @@ namespace nukes::details::misc {
         alignas(constants::word_alignment<ChunkType>) ChunkType  _mem       {};
     };
 
+    // NOTE: Сигнатура функции аллокации памяти
+    typedef void*(mem_alloc_t)(size_t);
+
+    // NOTE: Сигнатура функции освобождения памяти
+    typedef void(mem_free_t)(void*);
+
+    #define NUKES_DEFAULT_ALLOCATE_FUNC malloc
+
+    #define NUKES_DEFAULT_FREE_FUNC free
 
 } // end namespace nukes
 

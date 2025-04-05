@@ -1,5 +1,5 @@
-#ifndef NUKES_ATOMIC_FIFO_POOL
-#define NUKES_ATOMIC_FIFO_POOL
+#ifndef NUKES_POOL_ATOMIC_FIFO
+#define NUKES_POOL_ATOMIC_FIFO
 
 #include <atomic>
 #include <cstdint>
@@ -12,7 +12,7 @@
 namespace nukes::pool {
 
 template <typename dataT, details::constants::hword lenV = 1024>
-struct atomic_fifo_pool {
+struct atomic_fifo {
 
 protected:
 
@@ -28,13 +28,13 @@ protected:
 
 public:
 
-    atomic_fifo_pool() noexcept
+    atomic_fifo() noexcept
         requires ( lenV != details::constants::runtime_discover );
 
-    atomic_fifo_pool(details::constants::hword) noexcept
+    atomic_fifo(details::constants::hword) noexcept
         requires ( lenV == details::constants::runtime_discover );
 
-    ~atomic_fifo_pool() noexcept =default;
+    ~atomic_fifo() noexcept =default;
 
     // NOTE: Выдача указателя на чанк по индексу буфера
     [[nodiscard]] dataT* ptr_by_idx(details::constants::hword idx) noexcept;
@@ -61,13 +61,13 @@ public:
 
 // ================================ DEFINITIONS ================================
 
-#define ATOMIC_FIFO_POOL_MEMBER(member_type)                              \
+#define ATOMIC_FIFO_MEMBER(member_type)                              \
     template <typename dataT, nukes::details::constants::hword lenV>    \
-    member_type nukes::pool::atomic_fifo_pool<dataT, lenV>::
+    member_type nukes::pool::atomic_fifo<dataT, lenV>::
 
 
-ATOMIC_FIFO_POOL_MEMBER()
-atomic_fifo_pool() noexcept
+ATOMIC_FIFO_MEMBER()
+atomic_fifo() noexcept
 requires ( lenV != nukes::details::constants::runtime_discover ) {
 
     // NOTE: При статическом определении размера ссылаем указатель буфера на начало хранилища,
@@ -83,8 +83,8 @@ requires ( lenV != nukes::details::constants::runtime_discover ) {
     }
 }
 
-ATOMIC_FIFO_POOL_MEMBER()
-atomic_fifo_pool(nukes::details::constants::hword l) noexcept
+ATOMIC_FIFO_MEMBER()
+atomic_fifo(nukes::details::constants::hword l) noexcept
 requires(lenV == nukes::details::constants::runtime_discover)
 : _len(l) {
 
@@ -102,13 +102,13 @@ requires(lenV == nukes::details::constants::runtime_discover)
 }
 
 
-ATOMIC_FIFO_POOL_MEMBER(dataT*)
+ATOMIC_FIFO_MEMBER(dataT*)
 ptr_by_idx(nukes::details::constants::hword idx) noexcept {
     return idx < _len ? &(_buffer[idx]._mem) : nullptr;
 }
 
 
-ATOMIC_FIFO_POOL_MEMBER(nukes::details::constants::hword)
+ATOMIC_FIFO_MEMBER(nukes::details::constants::hword)
 idx_by_ptr(dataT* ptr) const noexcept {
 
     // NOTE: Вычитаем из абсолютного адреса смещение до адреса начала буфера
@@ -129,7 +129,7 @@ idx_by_ptr(dataT* ptr) const noexcept {
 }
 
 
-ATOMIC_FIFO_POOL_MEMBER(bool)
+ATOMIC_FIFO_MEMBER(bool)
 sync_idx(nukes::details::constants::hword &idx) noexcept {
 
     // NOTE: Выходим если индекс превышает размер буфера
@@ -159,7 +159,7 @@ sync_idx(nukes::details::constants::hword &idx) noexcept {
 }
 
 
-ATOMIC_FIFO_POOL_MEMBER(bool)
+ATOMIC_FIFO_MEMBER(bool)
 capture_idx(nukes::details::constants::hword& idx) noexcept {
 
     // NOTE: Создаём сущности нового узла головы и копию текущей головы
@@ -185,7 +185,7 @@ capture_idx(nukes::details::constants::hword& idx) noexcept {
     return true;
 }
 
-ATOMIC_FIFO_POOL_MEMBER(bool)
+ATOMIC_FIFO_MEMBER(bool)
 sync(dataT*& ptr) noexcept {
 
 
@@ -207,7 +207,7 @@ sync(dataT*& ptr) noexcept {
 }
 
 
-ATOMIC_FIFO_POOL_MEMBER(bool)
+ATOMIC_FIFO_MEMBER(bool)
 capture(dataT*& ptr) noexcept {
 
     // NOTE: Индекс захваченой памяти
@@ -228,5 +228,5 @@ capture(dataT*& ptr) noexcept {
 }
 
 
-#undef ATOMIC_FIFO_POOL_MEMBER
-#endif // NUKES_ATOMIC_FIFO_POOL
+#undef ATOMIC_FIFO_MEMBER
+#endif // NUKES_POOL_ATOMIC_FIFO

@@ -5,8 +5,8 @@
 
 #include "nukes/details/node_types.h"
 #include "nukes/details/misc.h"
-#include "nukes/pool/atomic_lifo_pool.h"
-#include "nukes/pool/atomic_fifo_pool.h"
+#include "nukes/pool/atomic_lifo.h"
+#include "nukes/pool/atomic_fifo.h"
 
 
 
@@ -21,7 +21,7 @@ protected:
     typedef details::nodes::stc_node<dataT> node_t;
 
     std::atomic<details::nodes::stc_node_hdl> _top {}; // NOTE: Квази-указатель вершины
-    pool::atomic_fifo_pool<node_t, ssize> _free_nodes {}; // NOTE: pool аллокатор для хранения памяти под узлы
+    pool::atomic_fifo<node_t, ssize> _free_nodes {}; // NOTE: pool аллокатор для хранения памяти под узлы
 
 public:
 

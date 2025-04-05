@@ -1,5 +1,5 @@
-#ifndef NUKES_ATOMIC_LIFO_POOL
-#define NUKES_ATOMIC_LIFO_POOL
+#ifndef NUKES_POOL_ATOMIC_LIFO
+#define NUKES_POOL_ATOMIC_LIFO
 
 #include <atomic>
 #include <cstdint>
@@ -12,7 +12,7 @@ namespace nukes::pool {
 
 
 template <typename dataT, uint32_t lenV = 1024>
-struct atomic_lifo_pool {
+struct atomic_lifo {
 
 protected:
 
@@ -28,13 +28,13 @@ protected:
 
 public:
 
-    atomic_lifo_pool() noexcept
+    atomic_lifo() noexcept
         requires ( lenV != details::constants::runtime_discover );
 
-    atomic_lifo_pool(uint32_t) noexcept
+    atomic_lifo(uint32_t) noexcept
         requires ( lenV == details::constants::runtime_discover );
 
-    ~atomic_lifo_pool() noexcept =default;
+    ~atomic_lifo() noexcept =default;
 
     // NOTE: Выдача указателя на чанк по индексу буфера
     [[nodiscard]] dataT* ptr_by_idx(uint32_t idx) noexcept;
@@ -61,13 +61,13 @@ public:
 
 // ================================ DEFINITIONS ================================
 
-#define ATOMIC_LIFO_POOL_MEMBER(member_type)                      \
-    template <typename dataT, uint32_t lenV>                    \
-    member_type nukes::pool::atomic_lifo_pool<dataT, lenV>::
+#define ATOMIC_LIFO_MEMBER(member_type)                 \
+    template <typename dataT, uint32_t lenV>            \
+    member_type nukes::pool::atomic_lifo<dataT, lenV>::
 
 
-ATOMIC_LIFO_POOL_MEMBER()
-atomic_lifo_pool() noexcept
+ATOMIC_LIFO_MEMBER()
+atomic_lifo() noexcept
 requires ( lenV != details::constants::runtime_discover ) {
 
     // NOTE: При статическом определении размера ссылаем указатель буфера на начало хранилища,
@@ -82,8 +82,8 @@ requires ( lenV != details::constants::runtime_discover ) {
     }
 }
 
-ATOMIC_LIFO_POOL_MEMBER()
-atomic_lifo_pool(uint32_t l) noexcept
+ATOMIC_LIFO_MEMBER()
+atomic_lifo(uint32_t l) noexcept
 requires(lenV == details::constants::runtime_discover)
 : _len(l) {
 
@@ -100,13 +100,13 @@ requires(lenV == details::constants::runtime_discover)
 }
 
 
-ATOMIC_LIFO_POOL_MEMBER(dataT*)
+ATOMIC_LIFO_MEMBER(dataT*)
 ptr_by_idx(uint32_t idx) noexcept {
     return idx < _len ? &(_buffer[idx]._mem) : nullptr;
 }
 
 
-ATOMIC_LIFO_POOL_MEMBER(uint32_t)
+ATOMIC_LIFO_MEMBER(uint32_t)
 idx_by_ptr(dataT* ptr) const noexcept {
 
     // NOTE: Вычитаем из абсолютного адреса смещение до адреса начала буфера
@@ -127,7 +127,7 @@ idx_by_ptr(dataT* ptr) const noexcept {
 }
 
 
-ATOMIC_LIFO_POOL_MEMBER(bool)
+ATOMIC_LIFO_MEMBER(bool)
 sync_idx(uint32_t &idx) noexcept {
 
     // NOTE: Выходим если индекс превышает размер буфера
@@ -159,7 +159,7 @@ sync_idx(uint32_t &idx) noexcept {
 }
 
 
-ATOMIC_LIFO_POOL_MEMBER(bool)
+ATOMIC_LIFO_MEMBER(bool)
 capture_idx(uint32_t& idx) noexcept {
 
     // NOTE: Создаём сущности нового узла головы и копию текущей головы
@@ -185,7 +185,7 @@ capture_idx(uint32_t& idx) noexcept {
     return true;
 }
 
-ATOMIC_LIFO_POOL_MEMBER(bool)
+ATOMIC_LIFO_MEMBER(bool)
 sync(dataT*& ptr) noexcept {
 
 
@@ -207,7 +207,7 @@ sync(dataT*& ptr) noexcept {
 }
 
 
-ATOMIC_LIFO_POOL_MEMBER(bool)
+ATOMIC_LIFO_MEMBER(bool)
 capture(dataT*& ptr) noexcept {
 
     // NOTE: Индекс захваченой памяти
@@ -228,5 +228,5 @@ capture(dataT*& ptr) noexcept {
 }
 
 
-#undef ATOMIC_LIFO_POOL_MEMBER
-#endif // NUKES_ATOMIC_LIFO_POOL
+#undef ATOMIC_LIFO_MEMBER
+#endif // NUKES_POOL_ATOMIC_LIFO

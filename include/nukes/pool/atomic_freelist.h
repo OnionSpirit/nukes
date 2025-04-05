@@ -8,8 +8,8 @@
 #include "nukes/details/constants.h"
 #include "nukes/details/node_types.h"
 #include "nukes/details/misc.h"
-#include "atomic_lifo_pool.h"
-#include "atomic_fifo_pool.h"
+#include "atomic_lifo.h"
+#include "atomic_fifo.h"
 
 
 namespace nukes::pool {
@@ -23,13 +23,13 @@ template
         details::constants::bucket_meta_data
       + sizeof(details::misc::meta_chunk<dataT, details::constants::bucket_meta_data>) * 64,
 
-    template <typename, size_t> typename bufferT = atomic_lifo_pool,
+    template <typename, size_t> typename bufferT = atomic_fifo,
 
-    void* (mem_alloc) (size_t) = malloc,
+    void* (mem_alloc) (size_t) = NUKES_DEFAULT_ALLOCATE_FUNC,
 
-    void  (mem_free)  (void*)  = free
+    void  (mem_free)  (void*)  = NUKES_DEFAULT_FREE_FUNC
 >
-class atomic_freelist {
+class atomic_freelist_emplaced {
 
     typedef details::misc::meta_chunk<dataT, details::constants::bucket_meta_data> bucket_chunk_t; ///< Bucket chunk with metadata (Source bucket ptr) support
 
@@ -38,8 +38,8 @@ class atomic_freelist {
 
     static constexpr size_t bucket_control_data_size = sizeof(bucket_buf_t<1>); ///< Size of memory buffer structure with single element
 
-    static_assert(std::same_as<bucket_buf_t<1>, atomic_fifo_pool<bucket_chunk_t, 1>>
-                  or std::same_as<bucket_buf_t<1>, atomic_lifo_pool<bucket_chunk_t, 1>>,
+    static_assert(std::same_as<bucket_buf_t<1>, atomic_fifo<bucket_chunk_t, 1>>
+                  or std::same_as<bucket_buf_t<1>, atomic_lifo<bucket_chunk_t, 1>>,
                   "Only 'atomic_fifo_pool' and 'atomic_lifo_pool' pools allowed as 'bucket' basis"
                   );
 
@@ -81,15 +81,61 @@ private:
 
 public:
 
-    atomic_freelist(size_t buckets_count = 1);
+    atomic_freelist_emplaced(size_t buckets_count = 1);
 
-    ~atomic_freelist();
+    ~atomic_freelist_emplaced();
 
     [[nodiscard]] bool sync(dataT*& ptr) noexcept;
 
     [[nodiscard]] bool capture(dataT*& ptr) noexcept;
 };
 
+template
+<
+    typename dataT,
+
+    size_t capacityV = 128,
+
+    template <typename, size_t> typename bufferT = atomic_fifo,
+
+    void* (mem_alloc) (size_t) = malloc,
+
+    void  (mem_free)  (void*)  = free
+>
+using atomic_freelist = atomic_freelist_emplaced<
+    dataT,
+    details::constants::bucket_meta_data
+      + sizeof(details::misc::meta_chunk<dataT, details::constants::bucket_meta_data>)
+      * capacityV,
+    bufferT,
+    mem_alloc,
+    mem_free>;
+
+
+template <
+    typename dataT,
+
+    size_t capacityV = 128,
+
+    void* (mem_alloc) (size_t) = malloc,
+
+    void  (mem_free)  (void*)  = free
+>
+using atomic_freelist_fifo = atomic_freelist<dataT, capacityV, atomic_fifo, mem_alloc, mem_free>;
+
+
+template <
+    typename dataT,
+
+    size_t capacityV = 128,
+
+    void* (mem_alloc) (size_t) = malloc,
+
+    void  (mem_free)  (void*)  = free
+>
+using atomic_freelist_lifo = atomic_freelist<dataT, capacityV, atomic_lifo, mem_alloc, mem_free>;
+
+} // end namespace nukes
 
 // ================================ DEFINITIONS ================================
 
@@ -97,12 +143,12 @@ public:
     template <typename dataT, size_t bytes_per_bucketV,                 \
               template <typename, size_t> typename bufferT,             \
               void *(mem_alloc)(size_t), void(mem_free)(void *)>        \
-    member_type nukes::pool::atomic_freelist <dataT,                    \
-                                              bytes_per_bucketV, bufferT, mem_alloc, mem_free>::
+    member_type nukes::pool::atomic_freelist_emplaced <dataT,           \
+                  bytes_per_bucketV, bufferT, mem_alloc, mem_free>::
 
 
 ATOMIC_FREELIST_MEMBER()
-atomic_freelist(size_t buckets_count) {
+atomic_freelist_emplaced(size_t buckets_count) {
 
     // NOTE: Создаём указатели на текущий и предыдущий узлы
     bucket_node* prev = _bucket_list_head;
@@ -123,7 +169,7 @@ atomic_freelist(size_t buckets_count) {
 
 
 ATOMIC_FREELIST_MEMBER()
-~atomic_freelist() {
+~atomic_freelist_emplaced() {
 
     // NOTE: Записываем текущий узел как следующий от головного
     bucket_node* curr = _bucket_list_head->_next.load(std::memory_order_consume);
@@ -236,8 +282,6 @@ capture(dataT*& ptr) noexcept {
     return true;
 }
 
-
-} // end namespace nukes
 
 
 #undef ATOMIC_FREELIST_MEMBER
