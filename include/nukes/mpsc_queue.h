@@ -1,9 +1,9 @@
 /**
  * @file
- * @details Contains atomic_mpmc_queue_base declaration
+ * @details Contains atomic_mpsc_queue_base declaration
  */
-#ifndef NUKES_MPMC_QUEUE
-#define NUKES_MPMC_QUEUE
+#ifndef NUKES_MPSC_QUEUE
+#define NUKES_MPSC_QUEUE
 
 
 #include <atomic>
@@ -20,7 +20,7 @@ namespace nukes {
 
 
 /**
- * @details atomic mpmc queue base class
+ * @details atomic mpsc queue base class
  * @tparam dataT Type that assumed to be used in the queue
  * @tparam capacityV Value of capacity that will affect mempool object size
  * @tparam bufferT Type of buffer that will be used as allocator for nodes
@@ -32,15 +32,15 @@ template <
 
     template <typename, size_t> typename poolT = pool::atomic_freelist
 >
-struct mpmc_queue {
+struct mpsc_queue {
 
 protected:
 
     typedef details::nodes::dyn_node<dataT> node_t;  ///< Node type declaration
     typedef poolT<node_t, capacityV> mempool_t;      ///< Memory buffer type
 
-    std::atomic<details::nodes::dyn_node_hdl> _head {}; ///< Head pointer
-    std::atomic<details::nodes::dyn_node_hdl> _tail {}; ///< Tail pointer
+    node_t*                                   _head { &_dummy }; ///< Head pointer
+    std::atomic<details::nodes::dyn_node_hdl> _tail {};          ///< Tail pointer
 
     node_t    _dummy {};    ///< Dummy node instance
     mempool_t _mempool {};  ///< Memory buffer to allocate nodes from
@@ -54,7 +54,7 @@ protected:
 
 public:
 
-    mpmc_queue() noexcept;
+    mpsc_queue() noexcept;
 
     /**
      * @details Atomically pushes element to the queue
@@ -103,39 +103,38 @@ public:
 };
 
 template<typename dataT, size_t capacityV = details::constants::runtime_discover>
-using bounded_mpmc_queue = mpmc_queue<dataT, capacityV, pool::atomic_lifo>;
+using bounded_mpsc_queue = mpsc_queue<dataT, capacityV, pool::atomic_lifo>;
 
 template<typename dataT, size_t capacityV = details::constants::runtime_discover>
-using bounded_mpmc_queue_fifo_pool = mpmc_queue<dataT, capacityV, pool::atomic_fifo>;
+using bounded_mpsc_queue_fifo_pool = mpsc_queue<dataT, capacityV, pool::atomic_fifo>;
 
 } // end namespace nukes
 
 
 // ================================ DEFINITIONS ================================
 
-#define MPMC_QUEUE_MEMBER(member_type)         \
+#define MPSC_QUEUE_MEMBER(member_type)         \
     template <typename dataT,                       \
         size_t capacityV,                           \
         template <typename, size_t> typename poolT  \
         >                                           \
-        member_type nukes::mpmc_queue <        \
+        member_type nukes::mpsc_queue <        \
         dataT, capacityV, poolT>::
 
 
-MPMC_QUEUE_MEMBER()
-mpmc_queue() noexcept {
+MPSC_QUEUE_MEMBER()
+mpsc_queue() noexcept {
 
     const details::nodes::dyn_node_hdl initial_hdl {
         ._node = &_dummy,
         ._tag  = 0
     };
 
-    _head.store(initial_hdl);
     _tail.store(initial_hdl);
 };
 
 
-MPMC_QUEUE_MEMBER(bool)
+MPSC_QUEUE_MEMBER(bool)
 recycle_dummy(node_t*& n) noexcept {
 
     if (n == &_dummy) [[unlikely]] {
@@ -151,7 +150,7 @@ recycle_dummy(node_t*& n) noexcept {
 }
 
 
-MPMC_QUEUE_MEMBER(bool)
+MPSC_QUEUE_MEMBER(bool)
 push(details::misc::fn_forward_t<dataT> data) noexcept {
 
     node_t* new_node { nullptr };
@@ -171,30 +170,22 @@ push(details::misc::fn_forward_t<dataT> data) noexcept {
 }
 
 
-MPMC_QUEUE_MEMBER(bool)
+MPSC_QUEUE_MEMBER(bool)
 pop(dataT& data) noexcept {
-
-    while (true) {
-        details::nodes::dyn_node_hdl new_head_hdl, head_hdl = _head.load(std::memory_order_acquire);
-
-        do {if (not head_hdl._node) [[unlikely]] return false;
-            new_head_hdl._tag = head_hdl._tag + 1;
-            new_head_hdl._node = reinterpret_cast<node_t *>(head_hdl._node)->_next.load()._node;
-            if (not new_head_hdl._node) [[unlikely]] return false;
-        } while (not _head.compare_exchange_weak(head_hdl, new_head_hdl, std::memory_order_release,
-                                                 std::memory_order_relaxed));
-
-        auto* pop_node = std::forward<node_t*>(reinterpret_cast<node_t*>(head_hdl._node));
-
-        if (not recycle_dummy(pop_node)) [[likely]] {
-            data = std::forward<dataT>(pop_node->_data);
-            return _mempool.sync(pop_node);
+    do {
+        const node_t* new_head = _head->_next.load();
+        if (nullptr == new_head) [[unlikely]] return false;
+        else [[likely]] {
+            data = std::forward<dataT>(_head->_data);
+            _head = new_head;
         }
-    }
+    } while (recycle_dummy(_head));
+
+    return _mempool.sync(_head);
 }
 
 
-MPMC_QUEUE_MEMBER(void)
+MPSC_QUEUE_MEMBER(void)
 push_node(details::misc::fn_forward_t<node_t> node) noexcept {
 
     node->_next.store(details::nodes::dyn_node_hdl{}, std::memory_order_release);
@@ -208,43 +199,33 @@ push_node(details::misc::fn_forward_t<node_t> node) noexcept {
 }
 
 
-MPMC_QUEUE_MEMBER(void)
+MPSC_QUEUE_MEMBER(void)
 release_node(details::misc::fn_forward_t<node_t> node) noexcept {
     return _mempool.sync(node);
 }
 
 
-MPMC_QUEUE_MEMBER(bool)
-pop_node(node_t*& node) noexcept {
+MPSC_QUEUE_MEMBER(bool)
+pop_node(node_t*& n) noexcept {
 
-    while (true) {
-        details::nodes::dyn_node_hdl new_head_hdl, head_hdl = _head.load(std::memory_order_acquire);
+    do {
+        const node_t* new_head = _head->_next.load();
+        if (nullptr == new_head) [[unlikely]] return false;
+        else [[likely]] n = _head;
+    } while (recycle_dummy(_head));
 
-        do {if (not head_hdl._node) [[unlikely]] return false;
-            new_head_hdl._tag = head_hdl._tag + 1;
-            new_head_hdl._node = reinterpret_cast<node_t *>(head_hdl._node)->_next.load()._node;
-            if (not new_head_hdl._node) [[unlikely]] return false;
-        } while (not _head.compare_exchange_weak(head_hdl, new_head_hdl, std::memory_order_release,
-                                                 std::memory_order_relaxed));
-
-        node = std::forward<node_t*>(reinterpret_cast<node_t*>(head_hdl._node));
-
-        if (not recycle_dummy(node)) [[likely]] {
-            return true;
-        }
-    }
+    return true;
 }
 
-
-MPMC_QUEUE_MEMBER(bool)
+MPSC_QUEUE_MEMBER(bool)
 empty() noexcept {
 
-    auto head = _head.load(std::memory_order_acquire);
-    if (_tail.compare_exchange_weak(head, head, std::memory_order_release, std::memory_order_relaxed))
+    if (_head == _tail.load(std::memory_order_acquire)._node)
         return true;
     else return false;
 }
 
 
-#undef MPMC_QUEUE_MEMBER
-#endif // NUKES_MPMC_QUEUE
+
+#undef MPSC_QUEUE_MEMBER
+#endif // NUKES_MPSC_QUEUE
