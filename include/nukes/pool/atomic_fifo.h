@@ -20,11 +20,11 @@ protected:
     typedef std::atomic<details::nodes::stc_node_hdl> node_hdl_t;
     typedef details::misc::meta_data<lenV * sizeof(chunk_node_t)> storage_t;
 
-    node_hdl_t                       _head    {};           // NOTE: Квази-указатель головы
-    node_hdl_t                       _tail    {};           // NOTE: Квази-указатель хвоста
-    chunk_node_t*                    _buffer  { nullptr };  // NOTE: Буфер хранения памяти
+    alignas(8) storage_t             _storage {};
+    alignas(8) chunk_node_t*         _buffer  { nullptr };  // NOTE: Буфер хранения памяти
     const details::constants::hword  _len     { lenV };
-    storage_t                        _storage {};
+    alignas(64) node_hdl_t           _head    {};           // NOTE: Квази-указатель головы
+    alignas(64) node_hdl_t           _tail    {};           // NOTE: Квази-указатель хвоста
 
 public:
 
