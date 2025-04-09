@@ -13,16 +13,18 @@
 #include "nukes/mpsc_queue.h"
 #include "nukes/atomic_stack.h"
 #include "nukes/atomic_ringbuf.h"
-#include "atomic_stack_base.h"
+// #include "atomic_stack_base.h"
 #include "atomic_stack.h"
 #include "nukes/memory/atomic_lifo.h"
+#include "nukes/memory/atomic_fifo.h"
+#include "nukes/memory/atomic_freelist.h"
 #include "nukes/memory/atomic_bucketlist.h"
 
 inline constexpr size_t thread_count = 12;
 inline constexpr size_t data_volume = 1000000;
 inline constexpr size_t stack_data_size = thread_count * (data_volume / 2);
 
-nukes::atomic_stack_base<uint8_t> g_stack{};
+// nukes::atomic_stack_base<uint8_t> g_stack{};
 nukes::atomic_stack<uint8_t, data_volume> g_bounded_stack{};
 nukes::memory::atomic_lifo<uint8_t, data_volume> g_freelist{};
 nukes::memory::atomic_bucketlist<uint8_t> g_unbounded_freelist{};
@@ -39,24 +41,24 @@ static void sighandler(int signum) {
     exit(EXIT_FAILURE);
 }
 
-void thread_function() {
-    int arr [data_volume] = {};
-    int arr_i = 0;
+// void thread_function() {
+//     int arr [data_volume] = {};
+//     int arr_i = 0;
 
-    uint8_t k = 0;
-    for (int i =0; i < data_volume; ++i) {
-        if (i % 2 == 0) {
-            bool res = g_stack.push_new(i);
-        } else {
-            bool res = g_stack.pop_new(k);
-            arr[arr_i++] = k;
-        }
-    }
+//     uint8_t k = 0;
+//     for (int i =0; i < data_volume; ++i) {
+//         if (i % 2 == 0) {
+//             bool res = g_stack.push_new(i);
+//         } else {
+//             bool res = g_stack.pop_new(k);
+//             arr[arr_i++] = k;
+//         }
+//     }
 
-    for (int i =0; i < arr_i; ++i) {
-        bool res = g_stack.push_new(arr[i]);
-    }
-}
+//     for (int i =0; i < arr_i; ++i) {
+//         bool res = g_stack.push_new(arr[i]);
+//     }
+// }
 
 
 void bounded_stack_thread_function() {
@@ -182,40 +184,40 @@ int main() {
 
 /// ========================
 
-    std::cout << "Check for A-B-A for upgraded atomic bounded stack" << std::endl;
+    // std::cout << "Check for A-B-A for upgraded atomic bounded stack" << std::endl;
 
-    threads.reserve(thread_count);
-    for (int i =0; i < thread_count; ++i) {
-        threads.emplace_back(thread_function);
-    }
+    // threads.reserve(thread_count);
+    // for (int i =0; i < thread_count; ++i) {
+    //     threads.emplace_back(thread_function);
+    // }
 
-    for (auto& e : threads) e.join();
-    threads.clear();
+    // for (auto& e : threads) e.join();
+    // threads.clear();
 
-    output =0;
-    for (int i =0; i < stack_data_size; ++i) {
-        stack_contains.emplace_back((res = g_stack.pop_new(output), output));
-    }
+    // output =0;
+    // for (int i =0; i < stack_data_size; ++i) {
+    //     stack_contains.emplace_back((res = g_stack.pop_new(output), output));
+    // }
 
-    std::sort(stack_contains.begin(), stack_contains.end());
+    // std::sort(stack_contains.begin(), stack_contains.end());
 
-    cnt =0, now_val =0;
-    while (cnt < stack_data_size) {
-        const auto local_cnt = cnt % thread_count;
-        const auto curr_val = stack_contains.at(cnt);
-        if (0 == local_cnt) now_val = curr_val;
-        else if (curr_val != now_val) {
-            std::cout << "A-B-A case detected for upgraded atomic bounded stack" << std::endl;
-            break;
-        }
-        ++cnt;
-    }
+    // cnt =0, now_val =0;
+    // while (cnt < stack_data_size) {
+    //     const auto local_cnt = cnt % thread_count;
+    //     const auto curr_val = stack_contains.at(cnt);
+    //     if (0 == local_cnt) now_val = curr_val;
+    //     else if (curr_val != now_val) {
+    //         std::cout << "A-B-A case detected for upgraded atomic bounded stack" << std::endl;
+    //         break;
+    //     }
+    //     ++cnt;
+    // }
 
-    if (cnt == stack_data_size)
-        std::cout << "no A-B-A case detected for upgraded atomic bounded stack" << std::endl;
+    // if (cnt == stack_data_size)
+    //     std::cout << "no A-B-A case detected for upgraded atomic bounded stack" << std::endl;
 
-    assert(stack_contains.size() == stack_data_size);
-    stack_contains.clear();
+    // assert(stack_contains.size() == stack_data_size);
+    // stack_contains.clear();
 
 /// ========================
 

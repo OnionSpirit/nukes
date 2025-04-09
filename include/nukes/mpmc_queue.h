@@ -41,8 +41,8 @@ protected:
 
     mempool_t _mempool {};  ///< Memory buffer to allocate nodes from
     node_t    _dummy {};    ///< Dummy node instance
-    alignas(64) std::atomic<details::nodes::dyn_node_hdl> _head {}; ///< Head pointer
-    alignas(64) std::atomic<details::nodes::dyn_node_hdl> _tail {}; ///< Tail pointer
+    alignas(64) std::atomic<node_t*> _head { &_dummy }; ///< Head pointer
+    alignas(64) std::atomic<node_t*> _tail { &_dummy }; ///< Tail pointer
 
     /**
      * @details Recycles node, if it's dummy, to the end of the queue
@@ -53,7 +53,7 @@ protected:
 
 public:
 
-    mpmc_queue() noexcept;
+    mpmc_queue() noexcept = default;
 
     /**
      * @details Atomically pushes element to the queue
@@ -121,30 +121,17 @@ using bounded_mpmc_queue_fifo_pool = mpmc_queue<dataT, capacityV, memory::atomic
         dataT, capacityV, poolT>::
 
 
-MPMC_QUEUE_MEMBER()
-mpmc_queue() noexcept {
-
-    const details::nodes::dyn_node_hdl initial_hdl {
-        ._node = &_dummy,
-        ._tag  = 0
-    };
-
-    _head.store(initial_hdl);
-    _tail.store(initial_hdl);
-};
-
-
 MPMC_QUEUE_MEMBER(bool)
 recycle_dummy(node_t*& n) noexcept {
 
     if (n == &_dummy) [[unlikely]] {
-        n->_next.store(details::nodes::dyn_node_hdl{}, std::memory_order_release);
-        details::nodes::dyn_node_hdl new_tail_hdl, tail_hdl = _tail.load(std::memory_order_acquire);
-        new_tail_hdl._node = n;
-        while (not _tail.compare_exchange_weak(tail_hdl, new_tail_hdl, std::memory_order_release,
+        n->_next.store(node_t{}, std::memory_order_release);
+        node_t new_tail, current_tail = _tail.load(std::memory_order_acquire);
+        new_tail = n;
+        while (not _tail.compare_exchange_weak(current_tail, new_tail, std::memory_order_release,
                                                std::memory_order_relaxed)) {}
-        reinterpret_cast<node_t*>(tail_hdl._node)
-            ->_next.store(new_tail_hdl,std::memory_order_release);
+        reinterpret_cast<node_t*>(current_tail)
+            ->_next.store(new_tail,std::memory_order_release);
         return true;
     } else [[likely]] return false;
 }
@@ -157,14 +144,14 @@ push(details::misc::fn_forward_t<dataT> data) noexcept {
     const bool res = _mempool.capture(new_node);
     if (not res) return false;
     new_node->_data = std::forward<dataT>(data);
-    new_node->_next.store(details::nodes::dyn_node_hdl{}, std::memory_order_release);
+    new_node->_next.store(node_t{}, std::memory_order_release);
 
-    details::nodes::dyn_node_hdl new_tail_hdl, tail_hdl = _tail.load(std::memory_order_acquire);
-    new_tail_hdl._node = new_node;
-    while (not _tail.compare_exchange_weak(tail_hdl, new_tail_hdl, std::memory_order_release,
+    node_t new_tail, current_tail = _tail.load(std::memory_order_acquire);
+    new_tail = new_node;
+    while (not _tail.compare_exchange_weak(current_tail, new_tail, std::memory_order_release,
                                            std::memory_order_relaxed)) {}
-    reinterpret_cast<node_t*>(tail_hdl._node)
-        ->_next.store(new_tail_hdl,std::memory_order_release);
+    reinterpret_cast<node_t*>(current_tail)
+        ->_next.store(new_tail,std::memory_order_release);
 
     return true;
 }
@@ -174,16 +161,15 @@ MPMC_QUEUE_MEMBER(bool)
 pop(dataT& data) noexcept {
 
     while (true) {
-        details::nodes::dyn_node_hdl new_head_hdl, head_hdl = _head.load(std::memory_order_acquire);
+        node_t new_head, current_head = _head.load(std::memory_order_acquire);
 
-        do {if (not head_hdl._node) [[unlikely]] return false;
-            new_head_hdl._tag = head_hdl._tag + 1;
-            new_head_hdl._node = reinterpret_cast<node_t *>(head_hdl._node)->_next.load()._node;
-            if (not new_head_hdl._node) [[unlikely]] return false;
-        } while (not _head.compare_exchange_weak(head_hdl, new_head_hdl, std::memory_order_release,
+        do {if (not current_head) [[unlikely]] return false;
+            new_head = reinterpret_cast<node_t *>(current_head)->_next.load()._node;
+            if (not new_head) [[unlikely]] return false;
+        } while (not _head.compare_exchange_weak(current_head, new_head, std::memory_order_release,
                                                  std::memory_order_relaxed));
 
-        auto* pop_node = std::forward<node_t*>(reinterpret_cast<node_t*>(head_hdl._node));
+        auto* pop_node = std::forward<node_t*>(reinterpret_cast<node_t*>(current_head));
 
         if (not recycle_dummy(pop_node)) [[likely]] {
             data = std::forward<dataT>(pop_node->_data);
@@ -196,14 +182,14 @@ pop(dataT& data) noexcept {
 MPMC_QUEUE_MEMBER(void)
 push_node(details::misc::fn_forward_t<node_t> node) noexcept {
 
-    node->_next.store(details::nodes::dyn_node_hdl{}, std::memory_order_release);
+    node->_next.store(node_t{}, std::memory_order_release);
 
-    details::nodes::dyn_node_hdl new_tail_hdl, tail_hdl = _tail.load(std::memory_order_acquire);
-    new_tail_hdl._node = node;
-    while (not _tail.compare_exchange_weak(tail_hdl, new_tail_hdl, std::memory_order_release,
+    node_t new_tail, current_tail = _tail.load(std::memory_order_acquire);
+    new_tail = node;
+    while (not _tail.compare_exchange_weak(current_tail, new_tail, std::memory_order_release,
                                            std::memory_order_relaxed)) {}
-    reinterpret_cast<node_t*>(tail_hdl._node)
-        ->_next.store(new_tail_hdl,std::memory_order_release);
+    reinterpret_cast<node_t*>(current_tail)
+        ->_next.store(new_tail,std::memory_order_release);
 }
 
 
@@ -217,16 +203,15 @@ MPMC_QUEUE_MEMBER(bool)
 pop_node(node_t*& node) noexcept {
 
     while (true) {
-        details::nodes::dyn_node_hdl new_head_hdl, head_hdl = _head.load(std::memory_order_acquire);
+        node_t new_head, current_head = _head.load(std::memory_order_acquire);
 
-        do {if (not head_hdl._node) [[unlikely]] return false;
-            new_head_hdl._tag = head_hdl._tag + 1;
-            new_head_hdl._node = reinterpret_cast<node_t *>(head_hdl._node)->_next.load()._node;
-            if (not new_head_hdl._node) [[unlikely]] return false;
-        } while (not _head.compare_exchange_weak(head_hdl, new_head_hdl, std::memory_order_release,
+        do {if (not current_head) [[unlikely]] return false;
+            new_head = reinterpret_cast<node_t *>(current_head)->_next.load()._node;
+            if (not new_head) [[unlikely]] return false;
+        } while (not _head.compare_exchange_weak(current_head, new_head, std::memory_order_release,
                                                  std::memory_order_relaxed));
 
-        node = std::forward<node_t*>(reinterpret_cast<node_t*>(head_hdl._node));
+        node = std::forward<node_t*>(reinterpret_cast<node_t*>(current_head));
 
         if (not recycle_dummy(node)) [[likely]] {
             return true;

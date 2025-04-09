@@ -41,8 +41,8 @@ protected:
     mempool_t _mempool {};  ///< Memory buffer to allocate nodes from
     node_t    _dummy {};    ///< Dummy node instance
 
-    alignas(64) node_t*                                   _head { &_dummy }; ///< Head pointer
-    alignas(64) std::atomic<details::nodes::dyn_node_hdl> _tail {};          ///< Tail pointer
+    alignas(64) node_t*              _head { &_dummy }; ///< Head pointer
+    alignas(64) std::atomic<node_t*> _tail { &_dummy };          ///< Tail pointer
 
     /**
      * @details Recycles node, if it's dummy, to the end of the queue
@@ -53,7 +53,7 @@ protected:
 
 public:
 
-    mpsc_queue() noexcept;
+    mpsc_queue() noexcept = default;
 
     /**
      * @details Atomically pushes element to the queue
@@ -120,30 +120,17 @@ using bounded_mpsc_queue_fifo_pool = mpsc_queue<dataT, capacityV, memory::atomic
         member_type nukes::mpsc_queue <        \
         dataT, capacityV, poolT>::
 
-
-MPSC_QUEUE_MEMBER()
-mpsc_queue() noexcept {
-
-    const details::nodes::dyn_node_hdl initial_hdl {
-        ._node = &_dummy,
-        ._tag  = 0
-    };
-
-    _tail.store(initial_hdl);
-};
-
-
 MPSC_QUEUE_MEMBER(bool)
 recycle_dummy(node_t*& n) noexcept {
 
     if (n == &_dummy) [[unlikely]] {
-        n->_next.store(details::nodes::dyn_node_hdl{}, std::memory_order_release);
-        details::nodes::dyn_node_hdl new_tail_hdl, tail_hdl = _tail.load(std::memory_order_acquire);
-        new_tail_hdl._node = n;
-        while (not _tail.compare_exchange_weak(tail_hdl, new_tail_hdl, std::memory_order_release,
+        n->_next.store(node_t{}, std::memory_order_release);
+        node_t new_tail, current_tail = _tail.load(std::memory_order_acquire);
+        new_tail = n;
+        while (not _tail.compare_exchange_weak(current_tail, new_tail, std::memory_order_release,
                                                std::memory_order_relaxed)) {}
-        reinterpret_cast<node_t*>(tail_hdl._node)
-            ->_next.store(new_tail_hdl,std::memory_order_release);
+        reinterpret_cast<node_t*>(current_tail)
+            ->_next.store(new_tail,std::memory_order_release);
         return true;
     } else [[likely]] return false;
 }
@@ -156,14 +143,14 @@ push(details::misc::fn_forward_t<dataT> data) noexcept {
     const bool res = _mempool.capture(new_node);
     if (not res) return false;
     new_node->_data = std::forward<dataT>(data);
-    new_node->_next.store(details::nodes::dyn_node_hdl{}, std::memory_order_release);
+    new_node->_next.store(node_t{}, std::memory_order_release);
 
-    details::nodes::dyn_node_hdl new_tail_hdl, tail_hdl = _tail.load(std::memory_order_acquire);
-    new_tail_hdl._node = new_node;
-    while (not _tail.compare_exchange_weak(tail_hdl, new_tail_hdl, std::memory_order_release,
+    node_t new_tail, current_tail = _tail.load(std::memory_order_acquire);
+    new_tail = new_node;
+    while (not _tail.compare_exchange_weak(current_tail, new_tail, std::memory_order_release,
                                            std::memory_order_relaxed)) {}
-    reinterpret_cast<node_t*>(tail_hdl._node)
-        ->_next.store(new_tail_hdl,std::memory_order_release);
+    reinterpret_cast<node_t*>(current_tail)
+        ->_next.store(new_tail,std::memory_order_release);
 
     return true;
 }
@@ -187,14 +174,14 @@ pop(dataT& data) noexcept {
 MPSC_QUEUE_MEMBER(void)
 push_node(details::misc::fn_forward_t<node_t> node) noexcept {
 
-    node->_next.store(details::nodes::dyn_node_hdl{}, std::memory_order_release);
+    node->_next.store(node_t{}, std::memory_order_release);
 
-    details::nodes::dyn_node_hdl new_tail_hdl, tail_hdl = _tail.load(std::memory_order_acquire);
-    new_tail_hdl._node = node;
-    while (not _tail.compare_exchange_weak(tail_hdl, new_tail_hdl, std::memory_order_release,
+    node_t new_tail, current_tail = _tail.load(std::memory_order_acquire);
+    new_tail = node;
+    while (not _tail.compare_exchange_weak(current_tail, new_tail, std::memory_order_release,
                                            std::memory_order_relaxed)) {}
-    reinterpret_cast<node_t*>(tail_hdl._node)
-        ->_next.store(new_tail_hdl,std::memory_order_release);
+    reinterpret_cast<node_t*>(current_tail)
+        ->_next.store(new_tail,std::memory_order_release);
 }
 
 

@@ -9,30 +9,23 @@
 namespace nukes::details::nodes {
 
 // NOTE: Тип управляющего заголовка узла для структур с конечным колличеством узлов
-struct alignas(8) dyn_node_hdl {
-    void*             _node {nullptr};
-    constants::word   _tag  {0};
-};
-
-
-// NOTE: Тип управляющего заголовка узла для структур с динамическим хранением узлов
 struct alignas(constants::hword_size) stc_node_hdl {
     constants::hword _node_idx {constants::hword_max_v};
     constants::hword _tag      {constants::hword_min_v};
 };
 
 
-// NOTE: Тип управляющего заголовка узла для структур с конечным колличеством узлов
+// NOTE: Тип управляющего заголовка узла для структур с динамическим хранением узлов
 template <typename dataT>
 struct dyn_node
-    : private misc::atomic_typedef_mixin<dyn_node_hdl> {
+    : private misc::atomic_typedef_mixin<void*> {
 
     atomic_t                                           _next {};
     alignas(constants::word_alignment<dataT>) dataT    _data {};
 };
 
 
-// NOTE: Тип управляющего заголовка узла для структур с динамическим хранением узлов
+// NOTE: Тип управляющего заголовка узла для структур с конечным колличеством узлов
 template <typename dataT>
 struct stc_node
     : private misc::atomic_typedef_mixin<stc_node_hdl> {
