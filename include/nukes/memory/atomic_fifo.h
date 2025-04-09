@@ -1,5 +1,5 @@
-#ifndef NUKES_POOL_ATOMIC_FIFO
-#define NUKES_POOL_ATOMIC_FIFO
+#ifndef NUKES_MEMORY_ATOMIC_FIFO
+#define NUKES_MEMORY_ATOMIC_FIFO
 
 #include <atomic>
 #include <cstdint>
@@ -9,7 +9,7 @@
 
 
 
-namespace nukes::pool {
+namespace nukes::memory {
 
 template <typename dataT, details::constants::hword lenV = 1024>
 struct atomic_fifo {
@@ -63,7 +63,7 @@ public:
 
 #define ATOMIC_FIFO_MEMBER(member_type)                              \
     template <typename dataT, nukes::details::constants::hword lenV>    \
-    member_type nukes::pool::atomic_fifo<dataT, lenV>::
+    member_type nukes::memory::atomic_fifo<dataT, lenV>::
 
 
 ATOMIC_FIFO_MEMBER()
@@ -229,4 +229,4 @@ capture(dataT*& ptr) noexcept {
 
 
 #undef ATOMIC_FIFO_MEMBER
-#endif // NUKES_POOL_ATOMIC_FIFO
+#endif // NUKES_MEMORY_ATOMIC_FIFO

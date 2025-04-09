@@ -1,5 +1,5 @@
-#ifndef NUKES_POOL_ATOMIC_LIFO
-#define NUKES_POOL_ATOMIC_LIFO
+#ifndef NUKES_MEMORY_ATOMIC_LIFO
+#define NUKES_MEMORY_ATOMIC_LIFO
 
 #include <atomic>
 #include <cstdint>
@@ -8,7 +8,7 @@
 #include "nukes/details/misc.h"
 
 
-namespace nukes::pool {
+namespace nukes::memory {
 
 
 template <typename dataT, uint32_t lenV = 1024>
@@ -63,7 +63,7 @@ public:
 
 #define ATOMIC_LIFO_MEMBER(member_type)                 \
     template <typename dataT, uint32_t lenV>            \
-    member_type nukes::pool::atomic_lifo<dataT, lenV>::
+    member_type nukes::memory::atomic_lifo<dataT, lenV>::
 
 
 ATOMIC_LIFO_MEMBER()
@@ -229,4 +229,4 @@ capture(dataT*& ptr) noexcept {
 
 
 #undef ATOMIC_LIFO_MEMBER
-#endif // NUKES_POOL_ATOMIC_LIFO
+#endif // NUKES_MEMORY_ATOMIC_LIFO

@@ -9,24 +9,23 @@
 #include <thread>
 #include <algorithm>
 
-#include "include/nukes/mpmc_queue.h"
-//#include "atomic_mpsc_queue_base.h"
+#include "nukes/mpmc_queue.h"
+#include "nukes/mpsc_queue.h"
+#include "nukes/atomic_stack.h"
+#include "nukes/atomic_ringbuf.h"
 #include "atomic_stack_base.h"
-#include "include/nukes/bounded/atomic_stack.h"
 #include "atomic_stack.h"
-#include "nukes/pool/atomic_lifo.h"
-#include "include/nukes/pool/atomic_freelist.h"
-#include "include/nukes/unbounded/atomic_stack.h"
+#include "nukes/memory/atomic_lifo.h"
+#include "nukes/memory/atomic_bucketlist.h"
 
 inline constexpr size_t thread_count = 12;
 inline constexpr size_t data_volume = 1000000;
 inline constexpr size_t stack_data_size = thread_count * (data_volume / 2);
 
 nukes::atomic_stack_base<uint8_t> g_stack{};
-nukes::bounded::atomic_stack<uint8_t, data_volume> g_bounded_stack{};
-nukes::unbounded::atomic_stack<uint8_t> g_unbounded_stack{};
-nukes::pool::atomic_lifo<uint8_t, data_volume> g_freelist{};
-nukes::pool::atomic_freelist<uint8_t> g_unbounded_freelist{};
+nukes::atomic_stack<uint8_t, data_volume> g_bounded_stack{};
+nukes::memory::atomic_lifo<uint8_t, data_volume> g_freelist{};
+nukes::memory::atomic_bucketlist<uint8_t> g_unbounded_freelist{};
 
 aba_atomic_stack_base<uint8_t> g_aba_stack{};
 

@@ -9,11 +9,10 @@
 #include <atomic>
 #include <cstddef>
 
-#include "atomic_lifo.h"
 #include "constants.h"
 #include "nukes/details/node_types.h"
 #include "nukes/details/misc.h"
-#include "nukes/pool/atomic_freelist.h"
+#include "nukes/memory/atomic_bucketlist.h"
 
 
 namespace nukes {
@@ -28,22 +27,22 @@ namespace nukes {
 template <
     typename dataT,
 
-    size_t capacityV = 128,
+    size_t capacityV = 16,
 
-    template <typename, size_t> typename poolT = pool::atomic_freelist
+    template <typename, size_t> typename mempoolT = memory::atomic_bucketlist
 >
 struct mpmc_queue {
 
 protected:
 
     typedef details::nodes::dyn_node<dataT> node_t;  ///< Node type declaration
-    typedef poolT<node_t, capacityV> mempool_t;      ///< Memory buffer type
+    typedef mempoolT<node_t, capacityV> mempool_t;      ///< Memory buffer type
 
-    std::atomic<details::nodes::dyn_node_hdl> _head {}; ///< Head pointer
-    std::atomic<details::nodes::dyn_node_hdl> _tail {}; ///< Tail pointer
 
-    node_t    _dummy {};    ///< Dummy node instance
     mempool_t _mempool {};  ///< Memory buffer to allocate nodes from
+    node_t    _dummy {};    ///< Dummy node instance
+    alignas(64) std::atomic<details::nodes::dyn_node_hdl> _head {}; ///< Head pointer
+    alignas(64) std::atomic<details::nodes::dyn_node_hdl> _tail {}; ///< Tail pointer
 
     /**
      * @details Recycles node, if it's dummy, to the end of the queue
@@ -103,10 +102,10 @@ public:
 };
 
 template<typename dataT, size_t capacityV = details::constants::runtime_discover>
-using bounded_mpmc_queue = mpmc_queue<dataT, capacityV, pool::atomic_lifo>;
+using bounded_mpmc_queue = mpmc_queue<dataT, capacityV, memory::atomic_lifo>;
 
 template<typename dataT, size_t capacityV = details::constants::runtime_discover>
-using bounded_mpmc_queue_fifo_pool = mpmc_queue<dataT, capacityV, pool::atomic_fifo>;
+using bounded_mpmc_queue_fifo_pool = mpmc_queue<dataT, capacityV, memory::atomic_fifo>;
 
 } // end namespace nukes
 

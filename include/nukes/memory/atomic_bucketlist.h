@@ -1,5 +1,5 @@
-#ifndef NUKES_ATOMIC_FREELIST
-#define NUKES_ATOMIC_FREELIST
+#ifndef NUKES_MEMORY_ATOMIC_BUCKETLIST
+#define NUKES_MEMORY_ATOMIC_BUCKETLIST
 
 #include <atomic>
 #include <cstddef>
@@ -12,7 +12,7 @@
 #include "atomic_fifo.h"
 
 
-namespace nukes::pool {
+namespace nukes::memory {
 
 
 template
@@ -29,7 +29,7 @@ template
 
     void  (mem_free)  (void*)  = NUKES_DEFAULT_FREE_FUNC
 >
-class atomic_freelist_emplaced {
+class atomic_bucketlist_emplaced {
 
     typedef details::misc::meta_chunk<dataT, details::constants::bucket_meta_data> bucket_chunk_t; ///< Bucket chunk with metadata (Source bucket ptr) support
 
@@ -40,7 +40,7 @@ class atomic_freelist_emplaced {
 
     static_assert(std::same_as<bucket_buf_t<1>, atomic_fifo<bucket_chunk_t, 1>>
                   or std::same_as<bucket_buf_t<1>, atomic_lifo<bucket_chunk_t, 1>>,
-                  "Only 'atomic_fifo_pool' and 'atomic_lifo_pool' pools allowed as 'bucket' basis"
+                  "Only 'atomic_fifo' and 'atomic_lifo' memory pools allowed as 'bucket' basis"
                   );
 
     static_assert(details::constants::bucket_meta_data
@@ -67,9 +67,9 @@ private:
 
     bucket_node initial_bucket_node {}; ///< Static allocated first bucket node
 
-    bucket_node* const _bucket_list_head { &initial_bucket_node }; ///< Bucket list first node
+    bucket_node* const _bucketlist_head { &initial_bucket_node }; ///< Bucket list first node
 
-    std::atomic<bucket_node*> _bucket_list_tail { &initial_bucket_node }; ///< Bucket list last node
+    std::atomic<bucket_node*> _bucketlist_tail { &initial_bucket_node }; ///< Bucket list last node
 
     std::atomic<bucket_node*> _recent_bucket { &initial_bucket_node }; ///< Bucket that was successfully used for allocation recently
 
@@ -81,9 +81,9 @@ private:
 
 public:
 
-    atomic_freelist_emplaced(size_t buckets_count = 1);
+    atomic_bucketlist_emplaced(size_t buckets_count = 1);
 
-    ~atomic_freelist_emplaced();
+    ~atomic_bucketlist_emplaced();
 
     [[nodiscard]] bool sync(dataT*& ptr) noexcept;
 
@@ -102,7 +102,7 @@ template
 
     void  (mem_free)  (void*)  = free
 >
-using atomic_freelist = atomic_freelist_emplaced<
+using atomic_bucketlist = atomic_bucketlist_emplaced<
     dataT,
     details::constants::bucket_meta_data
       + sizeof(details::misc::meta_chunk<dataT, details::constants::bucket_meta_data>)
@@ -121,7 +121,7 @@ template <
 
     void  (mem_free)  (void*)  = free
 >
-using atomic_freelist_fifo = atomic_freelist<dataT, capacityV, atomic_fifo, mem_alloc, mem_free>;
+using atomic_bucketlist_fifo = atomic_bucketlist<dataT, capacityV, atomic_fifo, mem_alloc, mem_free>;
 
 
 template <
@@ -133,26 +133,26 @@ template <
 
     void  (mem_free)  (void*)  = free
 >
-using atomic_freelist_lifo = atomic_freelist<dataT, capacityV, atomic_lifo, mem_alloc, mem_free>;
+using atomic_bucketlist_lifo = atomic_bucketlist<dataT, capacityV, atomic_lifo, mem_alloc, mem_free>;
 
 } // end namespace nukes
 
 // ================================ DEFINITIONS ================================
 
-#define ATOMIC_FREELIST_MEMBER(member_type)                             \
+#define ATOMIC_BUCKETLIST_MEMBER(member_type)                           \
     template <typename dataT, size_t bytes_per_bucketV,                 \
               template <typename, size_t> typename bufferT,             \
               void *(mem_alloc)(size_t), void(mem_free)(void *)>        \
-    member_type nukes::pool::atomic_freelist_emplaced <dataT,           \
-                  bytes_per_bucketV, bufferT, mem_alloc, mem_free>::
+    member_type nukes::memory::atomic_bucketlist_emplaced <dataT,       \
+                bytes_per_bucketV, bufferT, mem_alloc, mem_free>::
 
 
-ATOMIC_FREELIST_MEMBER()
-atomic_freelist_emplaced(size_t buckets_count) {
+ATOMIC_BUCKETLIST_MEMBER()
+atomic_bucketlist_emplaced(size_t buckets_count) {
 
     // NOTE: Создаём указатели на текущий и предыдущий узлы
-    bucket_node* prev = _bucket_list_head;
-    bucket_node* curr = _bucket_list_head->_next.load(std::memory_order_consume);
+    bucket_node* prev = _bucketlist_head;
+    bucket_node* curr = _bucketlist_head->_next.load(std::memory_order_consume);
 
     // NOTE: Пока счётчик не привысил запрашиваемое колличество бакетов
     //       аллоцируем новые поштучно, создавая связанный список
@@ -164,15 +164,15 @@ atomic_freelist_emplaced(size_t buckets_count) {
     }
 
     // NOTE: Устанавливаем последний аллоцированный узел
-    _bucket_list_tail.store(prev, std::memory_order_relaxed);
+    _bucketlist_tail.store(prev, std::memory_order_relaxed);
 }
 
 
-ATOMIC_FREELIST_MEMBER()
-~atomic_freelist_emplaced() {
+ATOMIC_BUCKETLIST_MEMBER()
+~atomic_bucketlist_emplaced() {
 
     // NOTE: Записываем текущий узел как следующий от головного
-    bucket_node* curr = _bucket_list_head->_next.load(std::memory_order_consume);
+    bucket_node* curr = _bucketlist_head->_next.load(std::memory_order_consume);
     // NOTE: Пока есть указатель выполняем очистку с переходом к следующему элементу
     while(curr) {
         auto next = curr->_next.load(std::memory_order_consume);
@@ -182,7 +182,7 @@ ATOMIC_FREELIST_MEMBER()
 }
 
 
-ATOMIC_FREELIST_MEMBER(void)
+ATOMIC_BUCKETLIST_MEMBER(void)
 allocate_bucket_node(bucket_node*& node) {
 
     // NOTE: Выделяем блок памяти под бакет и сохраняем указатель
@@ -195,7 +195,7 @@ allocate_bucket_node(bucket_node*& node) {
 }
 
 
-ATOMIC_FREELIST_MEMBER(void)
+ATOMIC_BUCKETLIST_MEMBER(void)
 deallocate_bucket_node(bucket_node*& node) {
 
     uint8_t bucket [bytes_per_bucketV] = reinterpret_cast<uint8_t*>(node);
@@ -204,7 +204,7 @@ deallocate_bucket_node(bucket_node*& node) {
 }
 
 
-ATOMIC_FREELIST_MEMBER(bool)
+ATOMIC_BUCKETLIST_MEMBER(bool)
 sync(dataT*& ptr) noexcept {
 
     // NOTE: Преносим указатель на размер метаданных и интерпретируем этот как указатель на чанк
@@ -222,7 +222,7 @@ sync(dataT*& ptr) noexcept {
 }
 
 
-ATOMIC_FREELIST_MEMBER(bool)
+ATOMIC_BUCKETLIST_MEMBER(bool)
 capture(dataT*& ptr) noexcept {
 
     // NOTE: Считываем текущий бакет
@@ -239,7 +239,7 @@ capture(dataT*& ptr) noexcept {
         current_bucket = current_bucket->_next.load(std::memory_order_consume);
 
         // NOTE: Если следующего бакета нет то откатываемся к базовому
-        if (not current_bucket) current_bucket = &_bucket_list_head;
+        if (not current_bucket) current_bucket = &_bucketlist_head;
 
         // NOTE: Если указатель бакета вернулся к тому с которого начали,
         //       то пытаемся аллоцировать новый бакет
@@ -251,7 +251,7 @@ capture(dataT*& ptr) noexcept {
                 std::this_thread::yield();
                 // NOTE: После восстановления переключаемся на последний
                 //       аллоцированный бакет, ожидая что аллокация завершилась
-                current_bucket = _bucket_list_tail.load(std::memory_order_consume);
+                current_bucket = _bucketlist_tail.load(std::memory_order_consume);
                 // NOTE: Прерываем итерацию
                 continue;
             }
@@ -260,10 +260,10 @@ capture(dataT*& ptr) noexcept {
             allocate_bucket_node(new_bucket);
             // NOTE: Считываем крайний аллоцированый бакет и указываем
             //       новый аллоцированый как следующий
-            _bucket_list_tail.load(std::memory_order_consume)->_next.store(new_bucket, std::memory_order_release);
+            _bucketlist_tail.load(std::memory_order_consume)->_next.store(new_bucket, std::memory_order_release);
 
             // NOTE: Указываем новый аллоцированый бакет как крайний алоцированный
-            _bucket_list_tail.store(new_bucket, std::memory_order_release);
+            _bucketlist_tail.store(new_bucket, std::memory_order_release);
             // NOTE: Указываем новый аллоцированый бакет как выбраный
             current_bucket = new_bucket;
 
@@ -284,5 +284,5 @@ capture(dataT*& ptr) noexcept {
 
 
 
-#undef ATOMIC_FREELIST_MEMBER
-#endif // NUKES_ATOMIC_FREELIST
+#undef ATOMIC_BUCKETLIST_MEMBER
+#endif // NUKES_MEMORY_ATOMIC_BUCKETLIST

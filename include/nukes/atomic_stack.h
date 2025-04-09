@@ -1,16 +1,16 @@
-#ifndef NUKES_BOUNDED_ATOMIC_STACK
-#define NUKES_BOUNDED_ATOMIC_STACK
+#ifndef NUKES_ATOMIC_STACK
+#define NUKES_ATOMIC_STACK
 
 #include <atomic>
 
 #include "nukes/details/node_types.h"
 #include "nukes/details/misc.h"
-#include "nukes/pool/atomic_lifo.h"
-#include "nukes/pool/atomic_fifo.h"
+#include "nukes/memory/atomic_lifo.h"
+#include "nukes/memory/atomic_fifo.h"
 
 
 
-namespace nukes::bounded {
+namespace nukes {
 
 
 template <typename dataT, uint32_t ssize = 1024>
@@ -20,8 +20,8 @@ protected:
 
     typedef details::nodes::stc_node<dataT> node_t;
 
-    std::atomic<details::nodes::stc_node_hdl> _top {}; // NOTE: Квази-указатель вершины
-    pool::atomic_fifo<node_t, ssize> _free_nodes {};   // NOTE: pool аллокатор для хранения памяти под узлы
+    std::atomic<details::nodes::stc_node_hdl> _top {};   // NOTE: Квази-указатель вершины
+    memory::atomic_fifo<node_t, ssize> _free_nodes {};   // NOTE: pool аллокатор для хранения памяти под узлы
 
 public:
 
@@ -42,7 +42,7 @@ public:
 
 #define ATOMIC_STACK_MEMBER(member_type)            \
     template <typename dataT, uint32_t ssize>       \
-    member_type nukes::bounded::atomic_stack<dataT, ssize>::
+    member_type nukes::atomic_stack<dataT, ssize>::
 
 
 ATOMIC_STACK_MEMBER(bool)
@@ -87,4 +87,4 @@ pop(dataT &data) noexcept {
 
 
 #undef ATOMIC_STACK_MEMBER
-#endif // NUKES_BOUNDED_ATOMIC_STACK
+#endif // NUKES_ATOMIC_STACK

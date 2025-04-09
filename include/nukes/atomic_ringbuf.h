@@ -11,7 +11,7 @@
 
 
 
-namespace nukes::bounded {
+namespace nukes {
 
 template <typename dataT, details::constants::hword lenV = nukes::details::constants::runtime_discover>
 struct atomic_ringbuf {
@@ -59,7 +59,7 @@ public:
 
 #define ATOMIC_RINGBUF_MEMBER(member_type)                              \
     template <typename dataT, nukes::details::constants::hword lenV>    \
-    member_type nukes::bounded::atomic_ringbuf<dataT, lenV>::
+    member_type nukes::atomic_ringbuf<dataT, lenV>::
 
 
 ATOMIC_RINGBUF_MEMBER()
