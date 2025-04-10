@@ -12,6 +12,7 @@
 #include "constants.h"
 #include "nukes/details/node_types.h"
 #include "nukes/details/misc.h"
+#include "nukes/details/batch.h"
 #include "nukes/memory/atomic_bucketlist.h"
 
 
