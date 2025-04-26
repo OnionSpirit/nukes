@@ -28,9 +28,9 @@ namespace nukes {
 template <
     typename dataT,
 
-    size_t capacityV = 16,
+    nukes::details::constants::hword capacityV = 16,
 
-    template <typename, size_t> typename mempoolT = memory::atomic_bucketlist
+    template <typename, nukes::details::constants::hword> typename mempoolT = memory::atomic_bucketlist
 >
 struct mpmc_queue {
 
@@ -54,7 +54,13 @@ protected:
 
 public:
 
-    mpmc_queue() noexcept = default;
+    mpmc_queue(nukes::details::constants::hword l = 1024) noexcept
+    requires (capacityV == details::constants::runtime_discover): _mempool { mempool_t(l) }
+    { };
+
+    mpmc_queue() noexcept
+    requires (capacityV != details::constants::runtime_discover) : _mempool { mempool_t() }
+    { };
 
     /**
      * @details Atomically pushes element to the queue
@@ -113,13 +119,13 @@ using bounded_mpmc_queue_fifo_pool = mpmc_queue<dataT, capacityV, memory::atomic
 
 // ================================ DEFINITIONS ================================
 
-#define MPMC_QUEUE_MEMBER(member_type)         \
-    template <typename dataT,                       \
-        size_t capacityV,                           \
-        template <typename, size_t> typename poolT  \
-        >                                           \
-        member_type nukes::mpmc_queue <        \
-        dataT, capacityV, poolT>::
+#define MPMC_QUEUE_MEMBER(member_type)                                             \
+    template <typename dataT,                                                      \
+              nukes::details::constants::hword capacityV,                          \
+              template <typename, nukes::details::constants::hword> typename poolT \
+              >                                                                    \
+    member_type nukes::mpmc_queue <                                                \
+                dataT, capacityV, poolT>::
 
 
 MPMC_QUEUE_MEMBER(bool)

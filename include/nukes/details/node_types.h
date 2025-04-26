@@ -9,9 +9,19 @@
 namespace nukes::details::nodes {
 
 // NOTE: Тип управляющего заголовка узла для структур с конечным колличеством узлов
-struct alignas(constants::hword_size) stc_node_hdl {
+struct alignas(constants::hword_size) stc_node_hdr {
     constants::hword _node_idx {constants::hword_max_v};
     constants::hword _tag      {constants::hword_min_v};
+};
+
+
+// NOTE: Тип управляющего заголовка узла для структур с конечным колличеством узлов
+template <typename dataT>
+struct stc_node
+    : private misc::atomic_typedef_mixin<stc_node_hdr> {
+
+    atomic_t                                           _next {};
+    alignas(constants::word_alignment<dataT>) dataT    _data {};
 };
 
 
@@ -25,22 +35,12 @@ struct dyn_node
 };
 
 
-// NOTE: Тип управляющего заголовка узла для структур с конечным колличеством узлов
-template <typename dataT>
-struct stc_node
-    : private misc::atomic_typedef_mixin<stc_node_hdl> {
-
-    atomic_t                                           _next {};
-    alignas(constants::word_alignment<dataT>) dataT    _data {};
-};
-
-
 // NOTE: Тип узла для структур хранения зарезервированной памяти
 template <typename ChunkType>
 struct mem_node
-    : private misc::atomic_typedef_mixin<stc_node_hdl> {
+    : private misc::atomic_typedef_mixin<stc_node_hdr> {
 
-    using typename misc::atomic_typedef_mixin<stc_node_hdl>::atomic_t;
+    using typename misc::atomic_typedef_mixin<stc_node_hdr>::atomic_t;
 
     atomic_t                                                _next {};
     alignas(constants::word_size) ChunkType                 _mem  {};

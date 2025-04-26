@@ -20,7 +20,7 @@ protected:
 
     typedef details::nodes::stc_node<dataT> node_t;
 
-    std::atomic<details::nodes::stc_node_hdl> _top {};   // NOTE: Квази-указатель вершины
+    std::atomic<details::nodes::stc_node_hdr> _top {};   // NOTE: Квази-указатель вершины
     memory::atomic_fifo<node_t, ssize> _free_nodes {};   // NOTE: pool аллокатор для хранения памяти под узлы
 
 public:
@@ -53,7 +53,7 @@ push(details::misc::fn_forward_t<dataT> data) noexcept {
     if (not new_node) [[unlikely]] return false;
 
     new_node->_data = std::forward<dataT>(data);
-    details::nodes::stc_node_hdl new_top_hdl, top_hdl = _top.load();
+    details::nodes::stc_node_hdr new_top_hdl, top_hdl = _top.load();
     new_top_hdl._node_idx = _free_nodes.idx_by_ptr(new_node);
 
     do {
@@ -68,7 +68,7 @@ push(details::misc::fn_forward_t<dataT> data) noexcept {
 ATOMIC_STACK_MEMBER(bool)
 pop(dataT &data) noexcept {
 
-    details::nodes::stc_node_hdl new_top_hdl, top_hdl = _top.load();
+    details::nodes::stc_node_hdr new_top_hdl, top_hdl = _top.load();
     node_t* node { nullptr };
 
     do { if (top_hdl._node_idx == UINT32_MAX) [[unlikely]] return false;

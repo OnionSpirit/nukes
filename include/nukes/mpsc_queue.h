@@ -53,7 +53,13 @@ protected:
 
 public:
 
-    mpsc_queue() noexcept = default;
+    mpsc_queue(nukes::details::constants::hword l = 1024) noexcept
+    requires (capacityV == details::constants::runtime_discover): _mempool { mempool_t(l) }
+    { };
+
+    mpsc_queue() noexcept
+    requires (capacityV != details::constants::runtime_discover) : _mempool { mempool_t() }
+    { };
 
     /**
      * @details Atomically pushes element to the queue

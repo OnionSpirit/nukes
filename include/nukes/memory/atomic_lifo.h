@@ -18,13 +18,14 @@ protected:
 
 
     typedef details::nodes::mem_node<dataT> chunk_node_t;
-    typedef std::atomic<details::nodes::stc_node_hdl> node_hdl_t;
+    typedef details::nodes::stc_node_hdr node_hdr_t;
+    typedef chunk_node_t::atomic_t atomic_node_hdr_t;
     typedef details::misc::meta_data<lenV * sizeof(chunk_node_t)> storage_t;
 
-    node_hdl_t      _top     {};           // NOTE: Квази-указатель вершины
-    chunk_node_t*   _buffer  { nullptr };  // NOTE: Буфер хранения данных
-    const uint32_t  _len     { lenV };
-    storage_t       _storage { };
+    atomic_node_hdr_t _top     {};           // NOTE: Квази-указатель вершины
+    chunk_node_t*     _buffer  { nullptr };  // NOTE: Буфер хранения данных
+    const uint32_t    _len     { lenV };
+    storage_t         _storage { };
 
 public:
 
@@ -73,7 +74,7 @@ requires ( lenV != details::constants::runtime_discover ) {
     // NOTE: При статическом определении размера ссылаем указатель буфера на начало хранилища,
     //       их размер соответствует запрошенному через шаблонный параметр
     _buffer = new (&_storage.template release<chunk_node_t>()) chunk_node_t[_len];
-    details::nodes::stc_node_hdl next {._node_idx = 0, ._tag = 0};
+    node_hdr_t next {._node_idx = 0, ._tag = 0};
     _top.store(next);
     // NOTE: Связывание узлов в буфере
     for (int i =0; i < _len - 1; ++i) {
@@ -83,15 +84,48 @@ requires ( lenV != details::constants::runtime_discover ) {
 }
 
 ATOMIC_LIFO_MEMBER()
-atomic_lifo(uint32_t l) noexcept
+atomic_lifo(uint32_t len) noexcept
 requires(lenV == details::constants::runtime_discover)
-: _len(l) {
+: _len(len) {
 
     // NOTE: При динамическом определении размера, аллоцируем на куче нужный размер,
     //       сохраняем указатель в хранилище и записываем его в буфер 
     _buffer = (_storage = new chunk_node_t[_len]).template release<chunk_node_t*>();
-    details::nodes::stc_node_hdl next {._node_idx = 0, ._tag = 0};
+    node_hdr_t next {._node_idx = 0, ._tag = 0};
     _top.store(next);
+
+    // TODO: Попробовать допилить ускорение связывания через AVX
+
+    // constexpr size_t NODE_SIZE = sizeof(chunk_node_t);  // Размер узла (8 или 16 байт в x64)
+    // const size_t AVX_ALIGN = 32;                        // AVX работает с 32-байтными чанками
+
+    // // Обрабатываем блоки по 4 узла за раз (т.к. 256 бит / 64 бита (указатель) = 4)
+    // const size_t BLOCK_SIZE = 4;
+    // size_t i = 0;
+
+    // // Вычисляем адреса и заполняем next блоками
+    // for (; i + BLOCK_SIZE <= len; i += BLOCK_SIZE) {
+    //     // Загружаем 4 указателя за раз
+    //     __m256i next_ptrs = _mm256_setr_epi64x(
+    //         reinterpret_cast<int64_t>(&_buffer[i + 1]),
+    //         reinterpret_cast<int64_t>(&_buffer[i + 2]),
+    //         reinterpret_cast<int64_t>(&_buffer[i + 3]),
+    //         reinterpret_cast<int64_t>(i + BLOCK_SIZE < len ? &_buffer[i + BLOCK_SIZE] : nullptr)
+    //     );
+
+    //     // Сохраняем их в next текущих узлов
+    //     _mm256_storeu_si256(
+    //         reinterpret_cast<__m256i*>(&_buffer[i]._next),
+    //         next_ptrs
+    //     );
+    // }
+
+    // // Остатки обрабатываем вручную
+    // for (; i < len - 1; ++i) {
+    //     _buffer[i].next = &_buffer[i + 1];
+    // }
+    // _buffer[len - 1].next = nullptr;
+
     // NOTE: Связывание узлов в буфере
     for (int i =0; i < _len - 1; ++i) {
         next._node_idx = (uint32_t)(i + 1);
@@ -136,7 +170,7 @@ sync_idx(uint32_t &idx) noexcept {
     // NOTE: Указатель освобождаемую память в буфере
     chunk_node_t* new_node = &_buffer[idx];
     // NOTE: Создаём сущности нового узла головы и копию текущей головы
-    details::nodes::stc_node_hdl new_top_hdl, top_hdl = _top.load();
+    node_hdr_t new_top_hdl, top_hdl = _top.load();
     // Устанавливаем индекс новой головы равный передаваемому индексу для высвобождения
     new_top_hdl._node_idx = idx;
 
@@ -163,7 +197,7 @@ ATOMIC_LIFO_MEMBER(bool)
 capture_idx(uint32_t& idx) noexcept {
 
     // NOTE: Создаём сущности нового узла головы и копию текущей головы
-    details::nodes::stc_node_hdl new_top_hdl, top_hdl = _top.load();
+    node_hdr_t new_top_hdl, top_hdl = _top.load();
 
     // NOTE: После каждой неудачной попытки замещения
     //       top_hdl будет обновляться текущей головой

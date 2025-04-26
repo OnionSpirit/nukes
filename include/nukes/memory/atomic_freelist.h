@@ -44,6 +44,8 @@ public:
 
     atomic_freelist() noexcept = default;
 
+    atomic_freelist(details::constants::word = 1024) noexcept {};
+
     /**
      * @details Atomically pushes element to the queue
      * @param data Data to be pushed

@@ -17,14 +17,15 @@ struct atomic_fifo {
 protected:
 
     typedef details::nodes::mem_node<dataT> chunk_node_t;
-    typedef std::atomic<details::nodes::stc_node_hdl> node_hdl_t;
+    typedef details::nodes::stc_node_hdr node_hdr_t;
+    typedef chunk_node_t::atomic_t atomic_node_hdr_t;
     typedef details::misc::meta_data<lenV * sizeof(chunk_node_t)> storage_t;
 
     alignas(8) storage_t             _storage {};
     alignas(8) chunk_node_t*         _buffer  { nullptr };  // NOTE: Буфер хранения памяти
     const details::constants::hword  _len     { lenV };
-    alignas(64) node_hdl_t           _head    {};           // NOTE: Квази-указатель головы
-    alignas(64) node_hdl_t           _tail    {};           // NOTE: Квази-указатель хвоста
+    alignas(64) atomic_node_hdr_t    _head    {};           // NOTE: Квази-указатель головы
+    alignas(64) atomic_node_hdr_t    _tail    {};           // NOTE: Квази-указатель хвоста
 
 public:
 
@@ -73,7 +74,7 @@ requires ( lenV != nukes::details::constants::runtime_discover ) {
     // NOTE: При статическом определении размера ссылаем указатель буфера на начало хранилища,
     //       их размер соответствует запрошенному через шаблонный параметр
     _buffer = new (&_storage.template release<chunk_node_t>()) chunk_node_t[_len];
-    nukes::details::nodes::stc_node_hdl next {._node_idx = 0, ._tag = 0};
+    node_hdr_t next {._node_idx = 0, ._tag = 0};
     _head.store(next);
     _tail.store({._node_idx = _len, ._tag = 0});
     // NOTE: Связывание узлов в буфере
@@ -91,7 +92,7 @@ requires(lenV == nukes::details::constants::runtime_discover)
     // NOTE: При динамическом определении размера, аллоцируем на куче нужный размер,
     //       сохраняем указатель в хранилище и записываем его в буфер
     _buffer = (_storage = new chunk_node_t[_len]).template release<chunk_node_t*>();
-    nukes::details::nodes::stc_node_hdl next {._node_idx = 0, ._tag = 0};
+    node_hdr_t next {._node_idx = 0, ._tag = 0};
     _head.store(next);
     _tail.store({._node_idx = _len, ._tag = 0});
     // NOTE: Связывание узлов в буфере
@@ -136,7 +137,7 @@ sync_idx(nukes::details::constants::hword &idx) noexcept {
     if (idx >= _len) [[unlikely]] return false;
 
     // NOTE: Создаём сущности нового узла хвоста и копию текущего хвоста
-    nukes::details::nodes::stc_node_hdl new_tail_hdl, head_hdl, tail_hdl = _tail.load();
+    node_hdr_t new_tail_hdl, head_hdl, tail_hdl = _tail.load();
     // Устанавливаем индекс нового хвоста равный передаваемому индексу для высвобождения
     new_tail_hdl._node_idx = idx;
 
@@ -163,7 +164,7 @@ ATOMIC_FIFO_MEMBER(bool)
 capture_idx(nukes::details::constants::hword& idx) noexcept {
 
     // NOTE: Создаём сущности нового узла головы и копию текущей головы
-    nukes::details::nodes::stc_node_hdl new_head_hdl, head_hdl = _head.load();
+    node_hdr_t new_head_hdl, head_hdl = _head.load();
 
     // NOTE: После каждой неудачной попытки замещения
     //       top_hdl будет обновляться текущей головой

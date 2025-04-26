@@ -81,7 +81,7 @@ private:
 
 public:
 
-    atomic_bucketlist_emplaced(size_t buckets_count = 1);
+    atomic_bucketlist_emplaced();
 
     ~atomic_bucketlist_emplaced();
 
@@ -148,20 +148,20 @@ using atomic_bucketlist_lifo = atomic_bucketlist<dataT, capacityV, atomic_lifo, 
 
 
 ATOMIC_BUCKETLIST_MEMBER()
-atomic_bucketlist_emplaced(size_t buckets_count) {
+atomic_bucketlist_emplaced() {
 
     // NOTE: Создаём указатели на текущий и предыдущий узлы
     bucket_node* prev = _bucketlist_head;
     bucket_node* curr = _bucketlist_head->_next.load(std::memory_order_consume);
 
-    // NOTE: Пока счётчик не привысил запрашиваемое колличество бакетов
-    //       аллоцируем новые поштучно, создавая связанный список
-    for (int i = 0; i < buckets_count - 1; ++i) {
-        allocate_bucket_node(curr);
-        prev->_next.store(curr, std::memory_order_relaxed);
-        prev = curr;
-        curr = curr->_next;
-    }
+    // // NOTE: Пока счётчик не привысил запрашиваемое колличество бакетов
+    // //       аллоцируем новые поштучно, создавая связанный список
+    // for (int i = 0; i < buckets_count - 1; ++i) {
+    //     allocate_bucket_node(curr);
+    //     prev->_next.store(curr, std::memory_order_relaxed);
+    //     prev = curr;
+    //     curr = curr->_next;
+    // }
 
     // NOTE: Устанавливаем последний аллоцированный узел
     _bucketlist_tail.store(prev, std::memory_order_relaxed);
