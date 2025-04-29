@@ -11,7 +11,7 @@
 
 namespace nukes::memory {
 
-template <typename dataT, details::constants::hword lenV = 1024>
+template <typename dataT, details::constants::hword lenV = details::constants::runtime_discover>
 struct atomic_fifo {
 
 protected:
@@ -91,7 +91,7 @@ requires(lenV == nukes::details::constants::runtime_discover)
 
     // NOTE: При динамическом определении размера, аллоцируем на куче нужный размер,
     //       сохраняем указатель в хранилище и записываем его в буфер
-    _buffer = (_storage = new chunk_node_t[_len]).template release<chunk_node_t*>();
+    _buffer = (_storage = (storage_t)new chunk_node_t[_len]).template release<chunk_node_t*>();
     node_hdr_t next {._node_idx = 0, ._tag = 0};
     _head.store(next);
     _tail.store({._node_idx = _len, ._tag = 0});
@@ -131,13 +131,13 @@ idx_by_ptr(dataT* ptr) const noexcept {
 
 
 ATOMIC_FIFO_MEMBER(bool)
-sync_idx(nukes::details::constants::hword &idx) noexcept {
+sync_idx(nukes::details::constants::hword& idx) noexcept {
 
     // NOTE: Выходим если индекс превышает размер буфера
     if (idx >= _len) [[unlikely]] return false;
 
     // NOTE: Создаём сущности нового узла хвоста и копию текущего хвоста
-    node_hdr_t new_tail_hdl, head_hdl, tail_hdl = _tail.load();
+    node_hdr_t new_tail_hdl, tail_hdl = _tail.load();
     // Устанавливаем индекс нового хвоста равный передаваемому индексу для высвобождения
     new_tail_hdl._node_idx = idx;
 

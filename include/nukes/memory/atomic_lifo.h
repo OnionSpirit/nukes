@@ -11,7 +11,7 @@
 namespace nukes::memory {
 
 
-template <typename dataT, uint32_t lenV = 1024>
+template <typename dataT, uint32_t lenV = details::constants::runtime_discover>
 struct atomic_lifo {
 
 protected:
