@@ -147,7 +147,7 @@ sync_idx(nukes::details::constants::hword& idx) noexcept {
         // NOTE: В новом узле приращаем тег, и проводим замену только в том случае,
         //       в голову пишется новый узел, указывающий
         //       на текущую голову как на следующий узел
-    } while (not _head.compare_exchange_weak(tail_hdl, new_tail_hdl,
+    } while (not _tail.compare_exchange_weak(tail_hdl, new_tail_hdl,
                                              std::memory_order_release,
                                              std::memory_order_relaxed));
 
