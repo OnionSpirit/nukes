@@ -76,12 +76,12 @@ requires ( lenV != nukes::details::constants::runtime_discover ) {
     _buffer = new (&_storage.template release<chunk_node_t>()) chunk_node_t[_len];
     node_hdr_t next {._node_idx = 0, ._tag = 0};
     _head.store(next);
-    _tail.store({._node_idx = _len, ._tag = 0});
     // NOTE: Связывание узлов в буфере
-    for (int i =0; i < _len - 1; ++i) {
+    for (int i =0; i < _len; ++i) {
         next._node_idx = (nukes::details::constants::hword)(i + 1);
         _buffer[i]._next.store(next);
     }
+    _tail.store({._node_idx = _len - 1, ._tag = 0});
 }
 
 ATOMIC_FIFO_MEMBER()
@@ -94,12 +94,12 @@ requires(lenV == nukes::details::constants::runtime_discover)
     _buffer = (_storage = (storage_t)new chunk_node_t[_len]).template release<chunk_node_t*>();
     node_hdr_t next {._node_idx = 0, ._tag = 0};
     _head.store(next);
-    _tail.store({._node_idx = _len, ._tag = 0});
     // NOTE: Связывание узлов в буфере
-    for (int i =0; i < _len - 1; ++i) {
+    for (int i =0; i < _len; ++i) {
         next._node_idx = (nukes::details::constants::hword)(i + 1);
         _buffer[i]._next.store(next);
     }
+    _tail.store({._node_idx = _len - 1, ._tag = 0});
 }
 
 
@@ -215,12 +215,11 @@ capture(dataT*& ptr) noexcept {
     nukes::details::constants::hword idx {0};
 
     // NOTE: Используем захват по индексу
-    const bool is_captured
+    const bool is_captured { capture_idx(idx) and idx < _len};
 
-        { capture_idx(idx) and idx < _len};
     if (is_captured) [[likely]] {
         // NOTE: Выдаём указатель на данные уже вытащенной головы
-        ptr = &(_buffer[idx]._mem);
+        ptr = ptr_by_idx(idx);
         return true;
     }
 
