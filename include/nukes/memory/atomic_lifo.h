@@ -153,11 +153,12 @@ idx_by_ptr(dataT* ptr) const noexcept {
     const uint64_t normalized_addr
         { ((uint64_t)ptr
            - (uint64_t)&_buffer[0]
-           - sizeof(typename details::nodes::mem_node<dataT>::atomic_t)) };
+           - sizeof(typename chunk_node_t::atomic_t)) };
 
     // NOTE: Делим адрес на размер объекта буффера, получаем индекс
     const uint32_t idx
         { static_cast<uint32_t>(normalized_addr / sizeof(chunk_node_t)) };
+    // std::cout << idx << std::endl;
 
     // NOTE: Проверяем что индекс не вышел за размер буффера
     return idx < _len ? idx : UINT32_MAX;
@@ -205,7 +206,8 @@ capture_idx(uint32_t& idx) noexcept {
     // NOTE: После каждой неудачной попытки замещения
     //       top_hdl будет обновляться текущей головой
     //       средствами compare_exchange_weak(...)
-    do { if (top_hdl._node_idx == UINT32_MAX) [[unlikely]] return false;
+    do {
+        if (top_hdl._node_idx == UINT32_MAX) [[unlikely]] return false;
         // NOTE: Новая голова должна иметь больше касаний чем старая
         new_top_hdl._tag
             = top_hdl._tag + 1;

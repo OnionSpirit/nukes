@@ -120,15 +120,16 @@ idx_by_ptr(dataT* ptr) const noexcept {
     //       т.к. при захвате данных выдаём указатель на память под объект, а узлы буфера хранят:
     //       (квази-указатель на следующий элемент + память под объект)
     const nukes::details::constants::word normalized_addr {
-        (reinterpret_cast<nukes::details::constants::word>(ptr)
+        reinterpret_cast<nukes::details::constants::word>(ptr)
         - reinterpret_cast<nukes::details::constants::word>(&_buffer[0])
-        - sizeof(typename nukes::details::nodes::mem_node<dataT>::atomic_t))
+        - sizeof(typename chunk_node_t::atomic_t)
     };
 
     // NOTE: Делим адрес на размер объекта буфера, получаем индекс
     const nukes::details::constants::hword idx {
         static_cast<nukes::details::constants::hword>(normalized_addr / sizeof(chunk_node_t))
     };
+    // std::cout << idx << std::endl;
 
     // NOTE: Проверяем что индекс не вышел за размер буфера
     return idx < _len ? idx : nukes::details::constants::hword_max_v;
@@ -144,8 +145,11 @@ sync_idx(nukes::details::constants::hword& idx) noexcept {
 
     // NOTE: Создаём сущности нового узла хвоста и копию текущего хвоста
     node_hdr_t new_tail_hdl, tail_hdl = _tail.load();
-    // Устанавливаем индекс нового хвоста равный передаваемому индексу для высвобождения
+    // NOTE: Устанавливаем индекс нового хвоста равный передаваемому индексу для высвобождения
     new_tail_hdl._node_idx = idx;
+
+    // // NOTE: Обнуляем next вставляемого узла
+    // _buffer[idx]._next.store(node_hdr_t{});
 
     do {
         // NOTE: Новый хвост должен иметь больше касаний чем старый
@@ -176,16 +180,13 @@ capture_idx(nukes::details::constants::hword& idx) noexcept {
     //       top_hdl будет обновляться текущей головой
     //       средствами compare_exchange_weak(...)
     do {
-        const nukes::details::constants::hword new_head_idx = _buffer[head_hdl._node_idx]._next.load()._node_idx;
-        if (new_head_idx == nukes::details::constants::hword_max_v) [[unlikely]]
+        new_head_hdl = _buffer[head_hdl._node_idx]._next.load();
+        if (new_head_hdl._node_idx == nukes::details::constants::hword_max_v) [[unlikely]]
             return false;
 
         // NOTE: Новая голова должна иметь больше касаний чем старая
-        new_head_hdl._tag
-            = head_hdl._tag + 1;
-        // NOTE: Новая голова должна иметь индекс буфера
-        //       равный индексу следующего за головой узла
-        new_head_hdl._node_idx = new_head_idx;
+        new_head_hdl._tag = head_hdl._tag + 1;
+
         // NOTE: Проводим замену только в том случае,
         //       если тег и индекс текущей головы остался неизменен,
         //       в голову пишется следующий за ней узел
@@ -202,19 +203,10 @@ sync(dataT*& ptr) noexcept {
     // NOTE: Получаем индекс по указателю
     nukes::details::constants::hword idx = idx_by_ptr(ptr);
 
-    // NOTE: Используем Освобождение по индексу
-    const bool is_synced {
-        idx < _len and sync_idx(idx)
-    };
-
-    if (is_synced) [[likely]] {
-        // NOTE: Портим указатель, чтобы им нельзя было пользоваться повторно
-        ptr = nullptr;
-        return true;
-    }
-
-    // NOTE: Если не вышли раньше значит ошибка
-    return false;
+    // NOTE: Используем Освобождение по индексу и
+    //       портим указатель, чтобы им нельзя было
+    //       пользоваться повторно
+    return idx < _len and sync_idx(idx) and (ptr = nullptr) == nullptr;
 }
 
 
@@ -224,12 +216,8 @@ capture(dataT*& ptr) noexcept {
     // NOTE: Индекс захваченой памяти
     nukes::details::constants::hword idx {0};
 
-    // NOTE: Используем захват по индексу
-    const bool is_captured {
-        capture_idx(idx) and idx < _len and (ptr = ptr_by_idx(idx))
-    };
-
-    return is_captured;
+    // NOTE: Используем захват по индексу и каст индекса в указатель
+     return capture_idx(idx) and (ptr = ptr_by_idx(idx)) not_eq nullptr;
 }
 
 
