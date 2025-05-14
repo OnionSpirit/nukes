@@ -54,6 +54,9 @@ public:
 
     // NOTE: Захват свободного чанка
     [[nodiscard]] bool capture(dataT*& ptr) noexcept;
+
+    // NOTE: Освобождение переданного чанка
+    [[nodiscard]] bool empty() noexcept;
 };
 
 
@@ -259,6 +262,11 @@ capture(dataT*& ptr) noexcept {
 
     // NOTE: Если не вышли раньше значит ошибка
     return false;
+}
+
+ATOMIC_LIFO_MEMBER(bool)
+empty() noexcept {
+    return _top.load()._node_idx == nukes::details::constants::hword_max_v;
 }
 
 

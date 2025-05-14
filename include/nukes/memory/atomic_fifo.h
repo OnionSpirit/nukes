@@ -54,6 +54,9 @@ public:
 
     // NOTE: Захват свободного чанка
     [[nodiscard]] bool capture(dataT*& ptr) noexcept;
+
+    // NOTE: Освобождение переданного чанка
+    [[nodiscard]] bool empty() noexcept;
 };
 
 
@@ -77,11 +80,11 @@ requires ( lenV != nukes::details::constants::runtime_discover ) {
     node_hdr_t next {._node_idx = 0, ._tag = 0};
     _head.store(next);
     // NOTE: Связывание узлов в буфере
-    for (int i =0; i < _len; ++i) {
-        next._node_idx = (nukes::details::constants::hword)(i + 1);
+    for (int i =0; i < _len - 1; ++i) {
+        next._node_idx = static_cast<nukes::details::constants::hword>(i + 1);
         _buffer[i]._next.store(next);
     }
-    _tail.store({._node_idx = _len - 1, ._tag = 0});
+    _tail.store(next);
 }
 
 ATOMIC_FIFO_MEMBER()
@@ -95,11 +98,11 @@ requires(lenV == nukes::details::constants::runtime_discover)
     node_hdr_t next {._node_idx = 0, ._tag = 0};
     _head.store(next);
     // NOTE: Связывание узлов в буфере
-    for (int i =0; i < _len; ++i) {
-        next._node_idx = (nukes::details::constants::hword)(i + 1);
+    for (int i =0; i < _len - 1; ++i) {
+        next._node_idx = static_cast<nukes::details::constants::hword>(i + 1);
         _buffer[i]._next.store(next);
     }
-    _tail.store({._node_idx = _len - 1, ._tag = 0});
+    _tail.store(next);
 }
 
 
@@ -116,17 +119,19 @@ idx_by_ptr(dataT* ptr) const noexcept {
     //       и размер квази-указателя на следующий элемент из типа узла,
     //       т.к. при захвате данных выдаём указатель на память под объект, а узлы буфера хранят:
     //       (квази-указатель на следующий элемент + память под объект)
-    const nukes::details::constants::word normalized_addr
-        { ((nukes::details::constants::word)ptr
-           - (nukes::details::constants::word)&_buffer[0]
-           - sizeof(typename nukes::details::nodes::mem_node<dataT>::atomic_t)) };
+    const nukes::details::constants::word normalized_addr {
+        (reinterpret_cast<nukes::details::constants::word>(ptr)
+        - reinterpret_cast<nukes::details::constants::word>(&_buffer[0])
+        - sizeof(typename nukes::details::nodes::mem_node<dataT>::atomic_t))
+    };
 
-    // NOTE: Делим адрес на размер объекта буффера, получаем индекс
-    const nukes::details::constants::hword idx
-        { static_cast<nukes::details::constants::hword>(normalized_addr / sizeof(chunk_node_t)) };
+    // NOTE: Делим адрес на размер объекта буфера, получаем индекс
+    const nukes::details::constants::hword idx {
+        static_cast<nukes::details::constants::hword>(normalized_addr / sizeof(chunk_node_t))
+    };
 
-    // NOTE: Проверяем что индекс не вышел за размер буффера
-    return idx < _len ? idx : UINT32_MAX;
+    // NOTE: Проверяем что индекс не вышел за размер буфера
+    return idx < _len ? idx : nukes::details::constants::hword_max_v;
 }
 
 
@@ -134,7 +139,8 @@ ATOMIC_FIFO_MEMBER(bool)
 sync_idx(nukes::details::constants::hword& idx) noexcept {
 
     // NOTE: Выходим если индекс превышает размер буфера
-    if (idx >= _len) [[unlikely]] return false;
+    if (idx >= _len) [[unlikely]]
+        return false;
 
     // NOTE: Создаём сущности нового узла хвоста и копию текущего хвоста
     node_hdr_t new_tail_hdl, tail_hdl = _tail.load();
@@ -155,7 +161,7 @@ sync_idx(nukes::details::constants::hword& idx) noexcept {
     _buffer[tail_hdl._node_idx]._next.store(new_tail_hdl);
 
     // NOTE: Портим переданный индекс чтобы им было нельзя воспользоваться снова
-    idx = UINT32_MAX;
+    idx = nukes::details::constants::hword_max_v;
     return true;
 }
 
@@ -169,14 +175,17 @@ capture_idx(nukes::details::constants::hword& idx) noexcept {
     // NOTE: После каждой неудачной попытки замещения
     //       top_hdl будет обновляться текущей головой
     //       средствами compare_exchange_weak(...)
-    do { if (head_hdl._node_idx == UINT32_MAX) [[unlikely]] return false;
+    do {
+        const nukes::details::constants::hword new_head_idx = _buffer[head_hdl._node_idx]._next.load()._node_idx;
+        if (new_head_idx == nukes::details::constants::hword_max_v) [[unlikely]]
+            return false;
+
         // NOTE: Новая голова должна иметь больше касаний чем старая
         new_head_hdl._tag
             = head_hdl._tag + 1;
         // NOTE: Новая голова должна иметь индекс буфера
         //       равный индексу следующего за головой узла
-        new_head_hdl._node_idx
-            = _buffer[head_hdl._node_idx]._next.load()._node_idx;
+        new_head_hdl._node_idx = new_head_idx;
         // NOTE: Проводим замену только в том случае,
         //       если тег и индекс текущей головы остался неизменен,
         //       в голову пишется следующий за ней узел
@@ -194,8 +203,9 @@ sync(dataT*& ptr) noexcept {
     nukes::details::constants::hword idx = idx_by_ptr(ptr);
 
     // NOTE: Используем Освобождение по индексу
-    const bool is_synced
-        {idx < _len and sync_idx(idx) };
+    const bool is_synced {
+        idx < _len and sync_idx(idx)
+    };
 
     if (is_synced) [[likely]] {
         // NOTE: Портим указатель, чтобы им нельзя было пользоваться повторно
@@ -215,15 +225,21 @@ capture(dataT*& ptr) noexcept {
     nukes::details::constants::hword idx {0};
 
     // NOTE: Используем захват по индексу
-    const bool is_captured { capture_idx(idx) and idx < _len};
+    const bool is_captured {
+        capture_idx(idx) and idx < _len and (ptr = ptr_by_idx(idx))
+    };
 
-    if (is_captured) [[likely]] {
-        // NOTE: Выдаём указатель на данные уже вытащенной головы
-        ptr = ptr_by_idx(idx);
+    return is_captured;
+}
+
+
+ATOMIC_FIFO_MEMBER(bool)
+empty() noexcept {
+
+    auto head = _head.load(std::memory_order_acquire);
+    head._tag = _tail.load()._tag;
+    if (_tail.compare_exchange_weak(head, head, std::memory_order_release, std::memory_order_relaxed))
         return true;
-    }
-
-    // NOTE: Если не вышли раньше значит ошибка
     return false;
 }
 
