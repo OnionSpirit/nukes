@@ -148,8 +148,12 @@ sync_idx(nukes::details::constants::hword& idx) noexcept {
     // NOTE: Устанавливаем индекс нового хвоста равный передаваемому индексу для высвобождения
     new_tail_hdl._node_idx = idx;
 
-    // // NOTE: Обнуляем next вставляемого узла
-    // _buffer[idx]._next.store(node_hdr_t{});
+    // NOTE: Вставляем dummy в next, который будет перезаписан при следующем sync
+    static constexpr node_hdr_t dummy {
+        ._node_idx = nukes::details::constants::hword_max_v,
+        ._tag = lenV
+    };
+    _buffer[idx]._next.store(dummy);
 
     do {
         // NOTE: Новый хвост должен иметь больше касаний чем старый

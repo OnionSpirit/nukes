@@ -92,22 +92,16 @@ requires(lenV == details::constants::runtime_discover)
 : _len(len) {
 
     // NOTE: При динамическом определении размера, аллоцируем на куче нужный размер,
-    //       сохраняем указатель в хранилище и записываем его в буфер 
+    //       сохраняем указатель в хранилище и записываем его в буфер
     _buffer = (_storage = new chunk_node_t[_len]).template release<chunk_node_t*>();
     node_hdr_t next {._node_idx = 0, ._tag = 0};
     _top.store(next);
 
-    // TODO: Попробовать допилить ускорение связывания через AVX
-
-    // constexpr size_t NODE_SIZE = sizeof(chunk_node_t);  // Размер узла (8 или 16 байт в x64)
-    // const size_t AVX_ALIGN = 32;                        // AVX работает с 32-байтными чанками
-
     // // Обрабатываем блоки по 4 узла за раз (т.к. 256 бит / 64 бита (указатель) = 4)
-    // const size_t BLOCK_SIZE = 4;
-    // size_t i = 0;
-
+    // const constexpr size_t BLOCK_SIZE = 4;
+    //
     // // Вычисляем адреса и заполняем next блоками
-    // for (; i + BLOCK_SIZE <= len; i += BLOCK_SIZE) {
+    // for (size_t i = 0; i + BLOCK_SIZE <= len; i += BLOCK_SIZE) {
     //     // Загружаем 4 указателя за раз
     //     __m256i next_ptrs = _mm256_setr_epi64x(
     //         reinterpret_cast<int64_t>(&_buffer[i + 1]),
@@ -115,16 +109,16 @@ requires(lenV == details::constants::runtime_discover)
     //         reinterpret_cast<int64_t>(&_buffer[i + 3]),
     //         reinterpret_cast<int64_t>(i + BLOCK_SIZE < len ? &_buffer[i + BLOCK_SIZE] : nullptr)
     //     );
-
+    //
     //     // Сохраняем их в next текущих узлов
     //     _mm256_storeu_si256(
     //         reinterpret_cast<__m256i*>(&_buffer[i]._next),
     //         next_ptrs
     //     );
     // }
-
+    //
     // // Остатки обрабатываем вручную
-    // for (; i < len - 1; ++i) {
+    // for (size_t i = 0; i < len - 1; ++i) {
     //     _buffer[i].next = &_buffer[i + 1];
     // }
     // _buffer[len - 1].next = nullptr;
@@ -135,7 +129,6 @@ requires(lenV == details::constants::runtime_discover)
         _buffer[i]._next.store(next);
     }
 }
-
 
 ATOMIC_LIFO_MEMBER(dataT*)
 ptr_by_idx(uint32_t idx) noexcept {
