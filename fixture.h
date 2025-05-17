@@ -50,13 +50,13 @@ protected:
 public:
 
     static inline constexpr size_t thread_count = 12;
-    static inline constexpr size_t data_volume = 65535;
+    static inline constexpr size_t data_volume = 65536;
     static inline constexpr size_t stack_data_size = thread_count * (data_volume / 2);
 
     template <typename containerT>
         static inline void thr_container_walker(containerT& container) {
 
-        typedef uint8_t data_t;
+        typedef int data_t;
         typedef nukes::details::misc::fn_forward_t<data_t> data_forward_t;
 
         static constexpr bool is_contailner = requires(containerT cont, data_forward_t fwd, data_t& pll) {
@@ -67,7 +67,7 @@ public:
         int arr [data_volume] = {};
         int arr_i = 0;
 
-        uint8_t k = 0;
+        int k = 0;
         for (int i =0; i < data_volume; ++i) {
             if (i % 2 == 0) {
                 bool res = container.push(i);
@@ -85,7 +85,7 @@ public:
     template <typename mempoolT>
         static inline void thr_mempool_walker(mempoolT& mempool) {
 
-        typedef uint8_t data_t;
+        typedef int data_t;
         typedef data_t*& data_forward_t;
 
         static constexpr bool is_contailner = requires(mempoolT cont, data_forward_t fwd) {
@@ -96,14 +96,14 @@ public:
         ulong arr [data_volume] = {};
         int arr_i = 0;
 
-        uint8_t* mem { nullptr };
+        int* mem { nullptr };
         while (mempool.capture(mem) and arr_i <= data_volume) {
             arr[arr_i] = (ulong)mem;
             ++arr_i;
         }
 
         for (int i =0; i < arr_i; ++i) {
-            mem = (uint8_t*)(arr[i]);
+            mem = (int*)(arr[i]);
             bool res = mempool.sync(mem);
             EXPECT_TRUE(res);
         }

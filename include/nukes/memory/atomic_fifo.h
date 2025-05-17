@@ -19,7 +19,13 @@ protected:
     typedef details::nodes::mem_node<dataT> chunk_node_t;
     typedef details::nodes::stc_node_hdr node_hdr_t;
     typedef chunk_node_t::atomic_t atomic_node_hdr_t;
-    typedef details::misc::meta_data<lenV * sizeof(chunk_node_t)> storage_t;
+
+    static constexpr std::size_t storage_size_v  {
+        lenV
+            ? lenV * sizeof(chunk_node_t)
+            : sizeof(chunk_node_t)
+    };
+    typedef details::misc::meta_data<storage_size_v> storage_t;
 
     alignas(8) storage_t             _storage {};
     alignas(8) chunk_node_t*         _buffer  { nullptr };  // NOTE: Буфер хранения памяти
@@ -94,7 +100,8 @@ requires(lenV == nukes::details::constants::runtime_discover)
 
     // NOTE: При динамическом определении размера, аллоцируем на куче нужный размер,
     //       сохраняем указатель в хранилище и записываем его в буфер
-    _buffer = (_storage = (storage_t)new chunk_node_t[_len]).template release<chunk_node_t*>();
+    _storage = new chunk_node_t[_len];
+    _buffer = _storage.template release<chunk_node_t*>();
     node_hdr_t next {._node_idx = 0, ._tag = 0};
     _head.store(next);
     // NOTE: Связывание узлов в буфере

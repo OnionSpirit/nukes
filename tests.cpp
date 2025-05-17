@@ -2,22 +2,10 @@
 
 
 TEST_F(atomics, do_check_atomic_lifo_consistancy) {
-
     constexpr std::size_t len = data_volume;
 
-    typedef nukes::memory::atomic_lifo<uint8_t, len> container_t;
-    container_t container;
-
-    // for (int i = 0; i < len; i++) {
-    //     uint8_t* mem { nullptr };
-    //     container.capture(mem);
-    //     std::cout << "First - " << (ulong)mem << std::endl;
-    //     container.sync(mem);
-    //     container.capture(mem);
-    //     std::cout << "Second - " << (ulong)mem << std::endl;
-    //     container.sync(mem);
-    // }
-    // return;
+    typedef nukes::memory::atomic_lifo<int> container_t;
+    container_t container{len};
 
     for (int i =0; i < thread_count; ++i) {
         threads.emplace_back(thr_mempool_walker<container_t>, std::ref(container));
@@ -31,7 +19,7 @@ TEST_F(atomics, do_check_atomic_lifo_consistancy) {
 
     bool res { true };
     for (int i =0; i < len and res; ++i) {
-        uint8_t* mem { nullptr };
+        int* mem { nullptr };
         res = container.capture(mem);
         allocated_adresses.emplace_back((ulong)mem);
     }
@@ -41,9 +29,9 @@ TEST_F(atomics, do_check_atomic_lifo_consistancy) {
     ASSERT_EQ(allocated_adresses.size(), len);
 
     for (int i =0; i < (len -1); ++i) {
-        if ((allocated_adresses.at(i) + sizeof(nukes::details::nodes::mem_node<uint8_t>)) not_eq allocated_adresses.at(i+1)) {
+        if ((allocated_adresses.at(i) + sizeof(nukes::details::nodes::mem_node<int>)) not_eq allocated_adresses.at(i+1)) {
             std::cout << "container inconcistant cause: "
-                      << allocated_adresses.at(i) + sizeof(nukes::details::nodes::mem_node<uint8_t>) << " != "
+                      << allocated_adresses.at(i) + sizeof(nukes::details::nodes::mem_node<int>) << " != "
                       << allocated_adresses.at(i+1) << " | STEP: "
                       << i << std::endl;
             FAIL();
@@ -72,19 +60,8 @@ TEST_F(atomics, do_check_atomic_fifo_consistancy) {
 
     constexpr std::size_t len = data_volume;
 
-    typedef nukes::memory::atomic_fifo<uint8_t, len> container_t;
-    container_t container;
-
-    // for (int i = 0; i < len; i++) {
-    //     uint8_t* mem { nullptr };
-    //     container.capture(mem);
-    //     std::cout << "First - " << (ulong)mem << std::endl;
-    //     container.sync(mem);
-    //     container.capture(mem);
-    //     std::cout << "Second - " << (ulong)mem << std::endl;
-    //     container.sync(mem);
-    // }
-    // return;
+    typedef nukes::memory::atomic_fifo<int> container_t;
+    container_t container(len);
 
     for (int i =0; i < thread_count; ++i) {
         threads.emplace_back(thr_mempool_walker<container_t>, std::ref(container));
@@ -98,7 +75,7 @@ TEST_F(atomics, do_check_atomic_fifo_consistancy) {
 
     bool res { true };
     for (int i =0; i < len; ++i) {
-        uint8_t* mem { nullptr };
+        int* mem { nullptr };
         res = container.capture(mem);
         allocated_adresses.emplace_back((ulong)mem);
     }
@@ -116,17 +93,17 @@ TEST_F(atomics, do_check_atomic_fifo_consistancy) {
             zero_found++;
             continue;
         }
-        if ((allocated_adresses.at(i) + sizeof(nukes::details::nodes::mem_node<uint8_t>)) not_eq allocated_adresses.at(i+1)) {
+        if ((allocated_adresses.at(i) + sizeof(nukes::details::nodes::mem_node<int>)) not_eq allocated_adresses.at(i+1)) {
             // NOTE: Из-за того что последний элемент
             //       не считать где-то будет 1 разрыв
             //       шириной в 1 чанк -> и адрес будет
             //       отличаться не на 1 элемент, а на 2
-            if ((allocated_adresses.at(i) + 2 * sizeof(nukes::details::nodes::mem_node<uint8_t>)) == allocated_adresses.at(i+1) and allowed_misses == 0) {
+            if ((allocated_adresses.at(i) + 2 * sizeof(nukes::details::nodes::mem_node<int>)) == allocated_adresses.at(i+1) and allowed_misses == 0) {
                 allowed_misses++;
                 continue;
             }
             std::cout << "container inconcistant cause: "
-                      << allocated_adresses.at(i) + sizeof(nukes::details::nodes::mem_node<uint8_t>) << " != "
+                      << allocated_adresses.at(i) + sizeof(nukes::details::nodes::mem_node<int>) << " != "
                       << allocated_adresses.at(i+1) << " | STEP: "
                       << i << std::endl;
             FAIL();
