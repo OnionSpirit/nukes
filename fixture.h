@@ -78,7 +78,7 @@ public:
         }
 
         for (int i =0; i < arr_i; ++i) {
-            bool res = container->push(arr[i]);
+            bool res = container.push(arr[i]);
         }
     }
 

@@ -127,3 +127,34 @@ TEST_F(atomics, do_check_atomic_fifo_consistancy) {
     } else std::cout << "container is consistant" << std::endl;
 
 }
+
+TEST_F(atomics, do_check_mpmc_consistancy) {
+
+    constexpr std::size_t len = 10;
+
+    typedef nukes::bounded_mpmc_queue<int> container_t;
+    container_t container(len);
+
+    for (int i =0; i < thread_count; ++i) {
+        threads.emplace_back(thr_container_walker<container_t>, std::ref(container));
+    }
+
+    for (auto& e : threads) e.join();
+    threads.clear();
+
+    std::vector<int> pulled_data {};
+    pulled_data.reserve(len);
+
+    for (int k, i =0; i < len; ++i) {
+        container.pop(k);
+        pulled_data.emplace_back(k);
+    }
+
+    std::sort(pulled_data.begin(), pulled_data.end());
+
+    ASSERT_EQ(pulled_data.size(), len);
+
+    for (int i =0; i < (len -1); ++i) {
+        std::cout << pulled_data[i] << std::endl;
+    }
+}
