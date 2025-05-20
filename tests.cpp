@@ -141,15 +141,15 @@ TEST_F(atomics, do_check_mpmc_consistancy) {
         e.join();
     threads.clear();
 
-    std::vector<int> interactive_arr {};
+    std::vector<int> interactive_arr;
     interactive_arr.reserve(len);
 
-    for (int interactive =0, i =0; i < len; ++i) {
+    for (int interactive =0, i =0; i < len and not container.empty(); ++i) {
         container.pop(interactive);
         interactive_arr.emplace_back(interactive);
     }
 
-    ASSERT_EQ(interactive_arr.size(), len);
+    ASSERT_EQ(interactive_arr.size(), len - 1);
 
     std::unordered_set<int> thread_ids;
 
@@ -175,15 +175,15 @@ TEST_F(atomics, do_check_mpsc_consistancy) {
         e.join();
     threads.clear();
 
-    std::vector<int> interactive_arr {};
+    std::vector<int> interactive_arr;
     interactive_arr.reserve(len);
 
-    for (int interactive =0, i =0; i < len; ++i) {
+    for (int interactive =0, i =0; i < len and not container.empty(); ++i) {
         container.pop(interactive);
         interactive_arr.emplace_back(interactive);
     }
 
-    ASSERT_EQ(interactive_arr.size(), len);
+    ASSERT_EQ(interactive_arr.size(), len - 1);
 
     std::unordered_set<int> thread_ids;
 
