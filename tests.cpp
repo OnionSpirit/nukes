@@ -14,34 +14,33 @@ TEST_F(atomics, do_check_atomic_lifo_consistancy) {
     for (auto& e : threads) e.join();
     threads.clear();
 
-    std::vector<ulong> allocated_adresses {};
-    allocated_adresses.reserve(len);
+    std::vector<ulong> allocated_addresses {};
+    allocated_addresses.reserve(len);
 
-    bool res { true };
-    for (int i =0; i < len and res; ++i) {
+    for (int i =0; i < len; ++i) {
         int* mem { nullptr };
-        res = container.capture(mem);
-        allocated_adresses.emplace_back((ulong)mem);
+        container.capture(mem);
+        allocated_addresses.emplace_back(reinterpret_cast<ulong>(mem));
     }
 
-    std::sort(allocated_adresses.begin(), allocated_adresses.end());
+    std::ranges::sort(allocated_addresses);
 
-    ASSERT_EQ(allocated_adresses.size(), len);
+    ASSERT_EQ(allocated_addresses.size(), len);
 
     for (int i =0; i < (len -1); ++i) {
-        if ((allocated_adresses.at(i) + sizeof(nukes::details::nodes::mem_node<int>)) not_eq allocated_adresses.at(i+1)) {
+        if ((allocated_addresses.at(i) + sizeof(nukes::details::nodes::mem_node<int>)) not_eq allocated_addresses.at(i+1)) {
             std::cout << "container inconcistant cause: "
-                      << allocated_adresses.at(i) + sizeof(nukes::details::nodes::mem_node<int>) << " != "
-                      << allocated_adresses.at(i+1) << " | STEP: "
+                      << allocated_addresses.at(i) + sizeof(nukes::details::nodes::mem_node<int>) << " != "
+                      << allocated_addresses.at(i+1) << " | STEP: "
                       << i << std::endl;
             FAIL();
         }
     }
 
-    const uint64_t g_fl_memaddr_beg = (uint64_t)(container.ptr_by_idx(0)),
-                   g_fl_memaddr_end = (uint64_t)(container.ptr_by_idx(len - 1)),
-                   l_memaddr_beg = allocated_adresses.at(0),
-                   l_memaddr_end = allocated_adresses.at(len - 1);
+    const uint64_t g_fl_memaddr_beg = reinterpret_cast<uint64_t>(container.ptr_by_idx(0)),
+                   g_fl_memaddr_end = reinterpret_cast<uint64_t>(container.ptr_by_idx(len - 1)),
+                   l_memaddr_beg = allocated_addresses.at(0),
+                   l_memaddr_end = allocated_addresses.at(len - 1);
 
     if ((len - 1) not_eq container.idx_by_ptr(container.ptr_by_idx(len - 1))) {
         std::cout << "memaddr and buffidx mapping is incorrect" << std::endl;
@@ -73,14 +72,13 @@ TEST_F(atomics, do_check_atomic_fifo_consistancy) {
     std::vector<ulong> allocated_adresses {};
     allocated_adresses.reserve(len);
 
-    bool res { true };
     for (int i =0; i < len; ++i) {
         int* mem { nullptr };
-        res = container.capture(mem);
-        allocated_adresses.emplace_back((ulong)mem);
+        container.capture(mem);
+        allocated_adresses.emplace_back(reinterpret_cast<ulong>(mem));
     }
 
-    std::sort(allocated_adresses.begin(), allocated_adresses.end());
+    std::ranges::sort(allocated_adresses);
 
     ASSERT_EQ(allocated_adresses.size(), len);
 
@@ -110,8 +108,8 @@ TEST_F(atomics, do_check_atomic_fifo_consistancy) {
         }
     }
 
-    const uint64_t g_fl_memaddr_beg = (uint64_t)(container.ptr_by_idx(0)),
-                   g_fl_memaddr_end = (uint64_t)(container.ptr_by_idx(len - 1)),
+    const uint64_t g_fl_memaddr_beg = reinterpret_cast<uint64_t>(container.ptr_by_idx(0)),
+                   g_fl_memaddr_end = reinterpret_cast<uint64_t>(container.ptr_by_idx(len - 1)),
                    l_memaddr_beg = allocated_adresses.at(1),
                    l_memaddr_end = allocated_adresses.at(len - 1);
 
@@ -150,7 +148,7 @@ TEST_F(atomics, do_check_mpmc_consistancy) {
         pulled_data.emplace_back(k);
     }
 
-    std::sort(pulled_data.begin(), pulled_data.end());
+    std::ranges::sort(pulled_data);
 
     ASSERT_EQ(pulled_data.size(), len);
 

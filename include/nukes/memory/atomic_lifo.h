@@ -1,8 +1,6 @@
 #ifndef NUKES_MEMORY_ATOMIC_LIFO
 #define NUKES_MEMORY_ATOMIC_LIFO
 
-#include <atomic>
-#include <cstdint>
 #include "nukes/details/constants.h"
 #include "nukes/details/node_types.h"
 #include "nukes/details/misc.h"
@@ -11,15 +9,14 @@
 namespace nukes::memory {
 
 
-template <typename dataT, uint32_t lenV = details::constants::runtime_discover>
+template <typename dataT, details::constants::hword lenV = details::constants::runtime_discover>
 struct atomic_lifo {
 
 protected:
 
-
     typedef details::nodes::mem_node<dataT> chunk_node_t;
     typedef details::nodes::stc_node_hdr node_hdr_t;
-    typedef chunk_node_t::atomic_t atomic_node_hdr_t;
+    typedef typename chunk_node_t::atomic_t atomic_node_hdr_t;
 
     static constexpr std::size_t storage_size_v  {
         lenV
@@ -28,41 +25,41 @@ protected:
     };
     typedef details::misc::meta_data<storage_size_v> storage_t;
 
-    atomic_node_hdr_t _top     {};           // NOTE: Квази-указатель вершины
-    chunk_node_t*     _buffer  { nullptr };  // NOTE: Буфер хранения данных
-    const uint32_t    _len     { lenV };
-    storage_t         _storage { };
+    alignas(8)storage_t              _storage { };
+    alignas(8) chunk_node_t*         _buffer  { nullptr };  // NOTE: Буфер хранения данных
+    const details::constants::hword  _len     { lenV };
+    alignas(8) atomic_node_hdr_t     _top     {};           // NOTE: Квази-указатель вершины
 
 public:
 
     atomic_lifo() noexcept
         requires ( lenV != details::constants::runtime_discover );
 
-    atomic_lifo(uint32_t) noexcept
+    explicit atomic_lifo(details::constants::hword) noexcept
         requires ( lenV == details::constants::runtime_discover );
 
     ~atomic_lifo() noexcept =default;
 
     // NOTE: Выдача указателя на чанк по индексу буфера
-    [[nodiscard]] dataT* ptr_by_idx(uint32_t idx) noexcept;
+    [[nodiscard]] dataT* ptr_by_idx(details::constants::hword idx) noexcept;
 
     // NOTE: Выдача индекса в буфере по указателю на объект
-    [[nodiscard]] uint32_t idx_by_ptr(dataT* ptr) const noexcept;
+    [[nodiscard]] details::constants::hword idx_by_ptr(dataT* ptr) const noexcept;
 
     // NOTE: Освобождение чанка по индексу
-    [[nodiscard]] bool sync_idx(uint32_t& idx) noexcept;
+    bool sync_idx(details::constants::hword& idx) noexcept;
 
     // NOTE: Захват чанка по индексу
-    [[nodiscard]] bool capture_idx(uint32_t& idx) noexcept;
+    bool capture_idx(details::constants::hword& idx) noexcept;
 
     // NOTE: Освобождение переданного чанка
-    [[nodiscard]] bool sync(dataT*& ptr) noexcept;
+    bool sync(dataT*& ptr) noexcept;
 
     // NOTE: Захват свободного чанка
-    [[nodiscard]] bool capture(dataT*& ptr) noexcept;
+    bool capture(dataT*& ptr) noexcept;
 
     // NOTE: Освобождение переданного чанка
-    [[nodiscard]] bool empty() noexcept;
+    bool empty() noexcept;
 };
 
 
@@ -71,8 +68,8 @@ public:
 
 // ================================ DEFINITIONS ================================
 
-#define ATOMIC_LIFO_MEMBER(member_type)                 \
-    template <typename dataT, uint32_t lenV>            \
+#define ATOMIC_LIFO_MEMBER(member_type)                                \
+    template <typename dataT, nukes::details::constants::hword lenV>   \
     member_type nukes::memory::atomic_lifo<dataT, lenV>::
 
 
@@ -86,15 +83,15 @@ requires ( lenV != details::constants::runtime_discover ) {
     node_hdr_t next {._node_idx = 0, ._tag = 0};
     _top.store(next);
     // NOTE: Связывание узлов в буфере
-    for (int i =0; i < _len - 1; ++i) {
-        next._node_idx = (uint32_t)(i + 1);
+    for (details::constants::hword i =0; i < _len - 1; ++i) {
+        next._node_idx = i + 1;
         _buffer[i]._next.store(next);
     }
 }
 
 ATOMIC_LIFO_MEMBER()
-atomic_lifo(uint32_t len) noexcept
-requires(lenV == details::constants::runtime_discover)
+atomic_lifo(const details::constants::hword len) noexcept
+requires ( lenV == details::constants::runtime_discover )
 : _len(len) {
 
     // NOTE: При динамическом определении размера, аллоцируем на куче нужный размер,
@@ -131,42 +128,43 @@ requires(lenV == details::constants::runtime_discover)
     // _buffer[len - 1].next = nullptr;
 
     // NOTE: Связывание узлов в буфере
-    for (int i =0; i < _len - 1; ++i) {
-        next._node_idx = (uint32_t)(i + 1);
+    for (details::constants::hword i =0; i < _len - 1; ++i) {
+        next._node_idx = i + 1;
         _buffer[i]._next.store(next);
     }
 }
 
 ATOMIC_LIFO_MEMBER(dataT*)
-ptr_by_idx(uint32_t idx) noexcept {
+ptr_by_idx(details::constants::hword idx) noexcept {
     return idx < _len ? &(_buffer[idx]._mem) : nullptr;
 }
 
 
-ATOMIC_LIFO_MEMBER(uint32_t)
+ATOMIC_LIFO_MEMBER(nukes::details::constants::hword)
 idx_by_ptr(dataT* ptr) const noexcept {
 
     // NOTE: Вычитаем из абсолютного адреса смещение до адреса начала буфера
     //       и размер квази-указателя на следующий элемент из типа узла,
-    //       т.к. при захвате данных выдаём указатель на память под объект, а узлы буфера хранят:
+    //       т.к при захвате данных выдаём указатель на память под объект, а узлы буфера хранят:
     //       (квази-указатель на следующий элемент + память под объект)
-    const uint64_t normalized_addr
-        { ((uint64_t)ptr
-           - (uint64_t)&_buffer[0]
-           - sizeof(typename chunk_node_t::atomic_t)) };
+    const details::constants::word normalized_addr {
+        reinterpret_cast<details::constants::word>(ptr)
+        - reinterpret_cast<details::constants::word>(&_buffer[0])
+        - sizeof(typename chunk_node_t::atomic_t)
+    };
 
-    // NOTE: Делим адрес на размер объекта буффера, получаем индекс
-    const uint32_t idx
-        { static_cast<uint32_t>(normalized_addr / sizeof(chunk_node_t)) };
-    // std::cout << idx << std::endl;
+    // NOTE: Делим адрес на размер объекта буфера, получаем индекс
+    const details::constants::hword idx {
+        static_cast<details::constants::hword>(normalized_addr / sizeof(chunk_node_t))
+    };
 
-    // NOTE: Проверяем что индекс не вышел за размер буффера
-    return idx < _len ? idx : UINT32_MAX;
+    // NOTE: Проверяем что индекс не вышел за размер буфера
+    return idx < _len ? idx : details::constants::hword_max_v;
 }
 
 
 ATOMIC_LIFO_MEMBER(bool)
-sync_idx(uint32_t &idx) noexcept {
+sync_idx(details::constants::hword &idx) noexcept {
 
     // NOTE: Выходим если индекс превышает размер буфера
     if (idx >= _len) [[unlikely]] return false;
@@ -192,13 +190,13 @@ sync_idx(uint32_t &idx) noexcept {
     } while (not _top.compare_exchange_weak(top_hdl, new_top_hdl));
 
     // NOTE: Портим переданный индекс чтобы им было нельзя воспользоваться снова
-    idx = UINT32_MAX;
+    idx = details::constants::hword_max_v;
     return true;
 }
 
 
 ATOMIC_LIFO_MEMBER(bool)
-capture_idx(uint32_t& idx) noexcept {
+capture_idx(details::constants::hword& idx) noexcept {
 
     // NOTE: Создаём сущности нового узла головы и копию текущей головы
     node_hdr_t new_top_hdl, top_hdl = _top.load();
@@ -207,7 +205,7 @@ capture_idx(uint32_t& idx) noexcept {
     //       top_hdl будет обновляться текущей головой
     //       средствами compare_exchange_weak(...)
     do {
-        if (top_hdl._node_idx == UINT32_MAX) [[unlikely]] return false;
+        if (top_hdl._node_idx == details::constants::hword_max_v) [[unlikely]] return false;
         // NOTE: Новая голова должна иметь больше касаний чем старая
         new_top_hdl._tag
             = top_hdl._tag + 1;
@@ -229,7 +227,7 @@ sync(dataT*& ptr) noexcept {
 
 
     // NOTE: Получаем индекс по указателю
-    uint32_t idx = idx_by_ptr(ptr);
+    details::constants::hword idx = idx_by_ptr(ptr);
 
     // NOTE: Используем Освобождение по индексу
     const bool is_synced
@@ -250,7 +248,7 @@ ATOMIC_LIFO_MEMBER(bool)
 capture(dataT*& ptr) noexcept {
 
     // NOTE: Индекс захваченой памяти
-    uint32_t idx {0};
+    details::constants::hword idx {0};
 
     // NOTE: Используем захват по индексу
     const bool is_captured
@@ -268,7 +266,7 @@ capture(dataT*& ptr) noexcept {
 
 ATOMIC_LIFO_MEMBER(bool)
 empty() noexcept {
-    return _top.load()._node_idx == nukes::details::constants::hword_max_v;
+    return _top.load()._node_idx == details::constants::hword_max_v;
 }
 
 

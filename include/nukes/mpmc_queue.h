@@ -76,7 +76,7 @@ public:
      * @return @b True if element successfully pulled,
      * @b False when pulling failed or data node sync failed
      */
-    [[nodiscard]] bool pop(dataT& data) noexcept;
+    bool pop(dataT& data) noexcept;
 
     /**
      * @details Atomically pushes node instance to the queue (Move Semantics)
@@ -97,14 +97,14 @@ public:
      * @return @b True if node instance successfully pulled,
      * @b False when pulling failed
      */
-    [[nodiscard]] bool pop_node(node_t *& node) noexcept;
+    bool pop_node(node_t *& node) noexcept;
 
     /**
      * @details Weak operation, can show that empty queue is not empty,
      * but it will never show that not empty queue is empty
      * @return @b True when queue is empty (guaranteed), @b False when queue might have elements
      */
-    [[nodiscard]] bool empty() noexcept;
+    bool empty() noexcept;
 };
 
 template<typename dataT, size_t capacityV = details::constants::runtime_discover>
