@@ -8,14 +8,14 @@
 
 namespace nukes::details::nodes {
 
-// NOTE: Тип управляющего заголовка узла для структур с конечным колличеством узлов
+// NOTE: Тип управляющего заголовка узла для структур с конечным количеством узлов
 struct alignas(constants::hword_size) stc_node_hdr {
     constants::hword _node_idx {constants::hword_max_v};
     constants::hword _tag      {constants::hword_min_v};
 };
 
 
-// NOTE: Тип управляющего заголовка узла для структур с конечным колличеством узлов
+// NOTE: Тип управляющего заголовка узла для структур с конечным количеством узлов
 template <typename dataT>
 struct stc_node
     : private misc::atomic_typedef_mixin<stc_node_hdr> {
@@ -32,6 +32,8 @@ struct dyn_node
 
     atomic_t                                           _next {};
     alignas(constants::word_alignment<dataT>) dataT    _data {};
+
+    dyn_node* next() { return static_cast<dyn_node*>(_next.load()); }
 };
 
 

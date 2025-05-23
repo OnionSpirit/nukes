@@ -194,3 +194,36 @@ TEST_F(atomics, do_check_mpsc_consistancy) {
 
     ASSERT_EQ(thread_ids.size(), thread_count);
 }
+
+TEST_F(atomics, do_check_mpmc_batch) {
+
+    constexpr std::size_t len = data_volume;
+
+    typedef nukes::bounded_mpmc_queue<int> container_t;
+    container_t container(len);
+
+    for (int i =0; i < thread_count; ++i)
+        threads.emplace_back(thr_mpmc_container_walker<container_t>, std::ref(container));
+
+    for (auto& e : threads)
+        e.join();
+    threads.clear();
+
+    std::vector<int> interactive_arr;
+    interactive_arr.reserve(len);
+
+    for (auto& interactive : container.pop_batch()) {
+        interactive_arr.emplace_back(interactive);
+    }
+
+    ASSERT_EQ(interactive_arr.size(), len - 1);
+
+    std::unordered_set<int> thread_ids;
+
+    for (auto& el : interactive_arr) {
+        if (el == 0) continue;
+        thread_ids.insert(el);
+    }
+
+    ASSERT_EQ(thread_ids.size(), thread_count);
+}

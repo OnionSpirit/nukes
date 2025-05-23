@@ -11,7 +11,7 @@
 #include "constants.h"
 #include "nukes/details/node_types.h"
 #include "nukes/details/misc.h"
-// #include "nukes/details/batch.h"
+#include "nukes/details/batch.h"
 #include "nukes/memory/atomic_bucketlist.h"
 
 
@@ -98,6 +98,25 @@ public:
      * @b False when pulling failed
      */
     bool pop_node(node_t *& node) noexcept;
+
+    /**
+     * @details Извлекает всю очередь атомарно, в формате листа
+     * @return Объект @b batch содержащий только операции получения итератора,
+     * для прохода по списку
+     */
+    details::batch<node_t, mempool_t> pop_batch() noexcept {
+        typedef details::batch<node_t, mempool_t> batch_t;
+        node_t *current_head = _head.load(std::memory_order_acquire);
+        node_t *current_tail;
+            do {
+                current_tail = _tail.load(std::memory_order_acquire);
+                if (not current_head) [[unlikely]] return batch_t{};
+                if (not current_tail) [[unlikely]] return batch_t{};
+            } while (not _head.compare_exchange_weak(current_head, current_tail,
+                                                     std::memory_order_release,
+                                                     std::memory_order_relaxed));
+        return batch_t { current_head, current_tail, &_mempool };
+    }
 
     /**
      * @details Weak operation, can show that empty queue is not empty,
