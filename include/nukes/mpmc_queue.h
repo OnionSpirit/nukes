@@ -132,6 +132,9 @@ using bounded_mpmc_queue = mpmc_queue<dataT, capacityV, memory::atomic_fifo>;
 template<typename dataT, size_t capacityV = details::constants::runtime_discover>
 using bounded_mpmc_queue_lifo_pool = mpmc_queue<dataT, capacityV, memory::atomic_lifo>;
 
+template<typename dataT>
+using unbounded_mpmc_queue = mpmc_queue<dataT, details::constants::runtime_discover, memory::atomic_freelist>;
+
 } // end namespace nukes
 
 
@@ -185,9 +188,17 @@ pop(dataT& data) noexcept {
     while (true) {
         node_t *new_head, *current_head = _head.load(std::memory_order_acquire);
 
-        do {if (not current_head) [[unlikely]] return false;
+        do {
+            // // NOTE: Делаем через goto, потому что continue станет проверять условие
+            // //       с CAS операцией, а нам такого не надо
+            // loop_begin:
+            if (not current_head) [[unlikely]] return false;
             new_head = reinterpret_cast<node_t *>(current_head->_next.load());
             if (not new_head) [[unlikely]] return false;
+            // if (_head.load(std::memory_order_relaxed) != current_head) [[unlikely]] {
+            //     current_head = _head.load(std::memory_order_relaxed);
+            //     goto loop_begin;
+            // }
         } while (not _head.compare_exchange_weak(current_head, new_head, std::memory_order_release,
                                                  std::memory_order_relaxed));
 

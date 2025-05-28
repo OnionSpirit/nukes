@@ -120,7 +120,7 @@ public:
         typedef int data_t;
         typedef data_t*& data_forward_t;
 
-        static constexpr bool is_contailner = requires(mempoolT cont, data_forward_t fwd) {
+        static constexpr bool is_container = requires(mempoolT cont, data_forward_t fwd) {
             { cont.capture(fwd) } -> std::same_as<bool>;
             { cont.sync(fwd) } -> std::same_as<bool>;
         };

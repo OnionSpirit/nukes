@@ -22,7 +22,7 @@ namespace nukes::memory {
  * @tparam dataT Type that assumed to be used in the freelist
  * @tparam _ Placeholder to iface compatibility
  */
-template <typename dataT, size_t _>
+template <typename dataT, size_t _ = 0>
 struct atomic_freelist {
 
 protected:
@@ -42,9 +42,12 @@ protected:
 
 public:
 
-    atomic_freelist() noexcept = default;
+    explicit atomic_freelist() noexcept = default;
 
-    atomic_freelist(details::constants::word = 1024) noexcept {};
+    // NOTE: Констуктор для совместимости
+    explicit atomic_freelist(details::constants::word = 1024) noexcept {};
+
+    ~atomic_freelist() noexcept;
 
     /**
      * @details Atomically pushes element to the queue
@@ -52,7 +55,7 @@ public:
      * @return @b True if element successfully pushed,
      * @b False when run out of capacity
      */
-    void sync(dataT*& data) noexcept;
+    bool sync(dataT*& data) noexcept;
 
     /**
      * @details Atomically pops an element from the queue to the reference
@@ -80,58 +83,77 @@ public:
     template <typename dataT, size_t _ >                        \
         member_type nukes::memory::atomic_freelist <dataT, _>::
 
+ATOMIC_FREELIST_MEMBER()
+~atomic_freelist() noexcept {
+
+    while (_head.load() != nullptr) {
+        auto temp = _head.load();
+        if (reinterpret_cast<ulong>(&temp) == reinterpret_cast<ulong>(&_dummy))
+            continue;
+        delete temp;
+        _head.store(reinterpret_cast<node_t*>(_head.load()->_next.load()));
+    }
+}
 
 ATOMIC_FREELIST_MEMBER(bool)
-recycle_dummy(node_t*& n) noexcept {
+recycle_dummy(node_t*& dummy) noexcept {
 
-    if (n == &_dummy) [[unlikely]] {
-        n->_next.store(node_t{}, std::memory_order_release);
-        node_t new_tail, current_tail = _tail.load(std::memory_order_acquire);
-        new_tail = n;
-        while (not _tail.compare_exchange_weak(current_tail, new_tail, std::memory_order_release,
+    if (dummy == &_dummy) [[unlikely]] {
+        dummy->_next.store(nullptr, std::memory_order_release);
+        node_t* current_tail = _tail.load(std::memory_order_acquire);
+        while (not _tail.compare_exchange_weak(current_tail, dummy, std::memory_order_release,
                                                std::memory_order_relaxed)) {}
-        reinterpret_cast<node_t*>(current_tail)
-            ->_next.store(new_tail,std::memory_order_release);
+        current_tail->_next.store(dummy,std::memory_order_release);
         return true;
     } else [[likely]] return false;
 }
 
 
-ATOMIC_FREELIST_MEMBER(void)
+ATOMIC_FREELIST_MEMBER(bool)
 sync(dataT*& data) noexcept {
 
-    node_t node = *(node_t*)((uint8_t*)data - offsetof(node_t, _data));
-    node->_next.store(node_t{}, std::memory_order_release);
+    auto* new_tail = reinterpret_cast<node_t *>(reinterpret_cast<uint8_t *>(data) - offsetof(node_t, _data));
+    new_tail->_next.store(nullptr, std::memory_order_release);
 
-    node_t new_tail, current_tail = _tail.load(std::memory_order_acquire);
-    new_tail = node;
-    while (not _tail.compare_exchange_weak(current_tail, new_tail, std::memory_order_release,
-                                           std::memory_order_relaxed)) {}
-    reinterpret_cast<node_t*>(current_tail)
-        ->_next.store(new_tail, std::memory_order_release);
+    node_t *current_tail = _tail.load(std::memory_order_acquire);
+    while (not _tail.compare_exchange_weak(current_tail, new_tail
+                                           , std::memory_order_release
+                                           , std::memory_order_relaxed)) {}
+    current_tail->_next.store(new_tail,std::memory_order_release);
 
     data = nullptr;
+    return true;
 }
 
 
 ATOMIC_FREELIST_MEMBER(bool)
 capture(dataT*& data) noexcept {
     while (true) {
-        node_t node, new_head, current_head = _head.load(std::memory_order_acquire);
+        node_t *new_head, *current_head = _head.load(std::memory_order_acquire);
 
-        do {if (not current_head) [[unlikely]] return false;
-            new_head = reinterpret_cast<node_t *>(current_head)->_next.load()._node;
-            if (not new_head) {
+        do {
+            // // NOTE: Делаем через goto, потому что continue станет проверять условие
+            // //       с CAS операцией, а нам такого не надо
+            // loop_begin:
+            if (not current_head) [[unlikely]] {
                 data = std::forward<dataT*>(&(new node_t)->_data);
                 return true;
             }
+            new_head = reinterpret_cast<node_t *>(current_head->_next.load());
+            if (not new_head) [[unlikely]] {
+                data = std::forward<dataT*>(&(new node_t)->_data);
+                return true;
+            }
+            // if (_head.load(std::memory_order_relaxed) != current_head) [[unlikely]] {
+            //     current_head = _head.load(std::memory_order_relaxed);
+            //     goto loop_begin;
+            // }
         } while (not _head.compare_exchange_weak(current_head, new_head, std::memory_order_release,
                                                  std::memory_order_relaxed));
 
-        node = std::forward<node_t*>(reinterpret_cast<node_t*>(current_head));
-
+        auto* node = std::forward<node_t*>(current_head);
         if (not recycle_dummy(node)) [[likely]] {
-            data = std::forward<dataT>(node->_data);
+            data = std::forward<dataT*>(&node->_data);
             return true;
         }
     }
