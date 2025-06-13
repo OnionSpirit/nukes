@@ -118,6 +118,7 @@ using bounded_mpsc_queue_fifo_pool = mpsc_queue<dataT, capacityV, memory::atomic
 
 // ================================ DEFINITIONS ================================
 
+
 #define MPSC_QUEUE_MEMBER(member_type)         \
     template <typename dataT,                       \
         size_t capacityV,                           \
@@ -125,6 +126,7 @@ using bounded_mpsc_queue_fifo_pool = mpsc_queue<dataT, capacityV, memory::atomic
         >                                           \
         member_type nukes::mpsc_queue <        \
         dataT, capacityV, poolT>::
+
 
 MPSC_QUEUE_MEMBER(bool)
 recycle_dummy(node_t*& n) noexcept {
