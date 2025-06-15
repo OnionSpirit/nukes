@@ -1,5 +1,5 @@
-#ifndef NUKES_SPSC_BOUNDED_QUEUE
-#define NUKES_SPSC_BOUNDED_QUEUE
+#ifndef NUKES_BOUNDED_SPSC_QUEUE
+#define NUKES_BOUNDED_SPSC_QUEUE
 
 #include <atomic>
 
@@ -10,10 +10,10 @@
 #include "nukes/memory/atomic_bucketlist.h"
 
 
-namespace nukes {
+namespace nukes::bounded {
 
 template <typename dataT, std::size_t capacityV>
-class spsc_bounded_queue {
+class spsc_queue {
 
     // NOTE: Важно, т.к. работаем с абсолютными значениями
     static_assert(not ( capacityV & (capacityV - 1) ), "capacityV must be a power of 2");
@@ -54,21 +54,21 @@ public:
     [[nodiscard]] bool push(details::misc::fn_forward_t<dataT> data);
 };
 
-} // end namespace nukes
+} // end namespace nukes::bounded
 
 
 // ================================ DEFINITIONS ================================
 
 
-#define SPSC_BOUNDED_QUEUE_MEMBER(member_type)   \
+#define BOUNDED_SPSC_QUEUE_MEMBER(member_type)   \
     template <typename dataT,                    \
     size_t capacityV                             \
     >                                            \
-    member_type nukes::spsc_bounded_queue <      \
+    member_type nukes::bounded::spsc_queue <     \
     dataT, capacityV>::
 
 
-SPSC_BOUNDED_QUEUE_MEMBER(bool)
+BOUNDED_SPSC_QUEUE_MEMBER(bool)
 pop(dataT& data) {
     const std::size_t head = _head.load(std::memory_order_relaxed);
 
@@ -87,7 +87,7 @@ pop(dataT& data) {
     return true;
 }
 
-SPSC_BOUNDED_QUEUE_MEMBER(bool)
+BOUNDED_SPSC_QUEUE_MEMBER(bool)
 push(nukes::details::misc::fn_forward_t<dataT> data) {
     const std::size_t tail = _tail.load(std::memory_order_relaxed);
 
@@ -106,5 +106,5 @@ push(nukes::details::misc::fn_forward_t<dataT> data) {
     return true;
 }
 
-#undef SPSC_BOUNDED_QUEUE_MEMBER
-#endif // NUKES_SPSC_BOUNDED_QUEUE
+#undef BOUNDED_SPSC_QUEUE_MEMBER
+#endif // NUKES_BOUNDED_SPSC_QUEUE

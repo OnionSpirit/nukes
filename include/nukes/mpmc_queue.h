@@ -2,8 +2,8 @@
  * @file
  * @details Contains atomic_mpmc_queue_base declaration
  */
-#ifndef NUKES_MPMC_QUEUE
-#define NUKES_MPMC_QUEUE
+#ifndef NUKES_DYNAMIC_MPMC_QUEUE
+#define NUKES_DYNAMIC_MPMC_QUEUE
 
 
 #include <atomic>
@@ -12,31 +12,23 @@
 #include "nukes/details/node_types.h"
 #include "nukes/details/misc.h"
 #include "nukes/details/batch.h"
-#include "nukes/memory/atomic_bucketlist.h"
+#include "nukes/atomic_freelist.h"
 
 
-namespace nukes {
+namespace nukes::dynamic {
 
 
 /**
  * @details atomic mpmc queue base class
  * @tparam dataT Type that assumed to be used in the queue
- * @tparam capacityV Value of capacity that will affect mempool object size
- * @tparam mempoolT Type of buffer that will be used as allocator for nodes
  */
-template <
-    typename dataT,
-
-    nukes::details::constants::hword capacityV = details::constants::runtime_discover,
-
-    template <typename, nukes::details::constants::hword> typename mempoolT = memory::atomic_bucketlist
->
+template <typename dataT>
 struct mpmc_queue {
 
 protected:
 
-    typedef details::nodes::dyn_node<dataT> node_t;  ///< Node type declaration
-    typedef mempoolT<node_t, capacityV> mempool_t;      ///< Memory buffer type
+    typedef details::nodes::dyn_node<dataT> node_t;     ///< Node type declaration
+    typedef memory::atomic_freelist<node_t> mempool_t;  ///< Memory buffer type
 
 
     mempool_t _mempool {};  ///< Memory buffer to allocate nodes from
@@ -53,13 +45,7 @@ protected:
 
 public:
 
-    explicit mpmc_queue(nukes::details::constants::hword l = 1024) noexcept
-    requires (capacityV == details::constants::runtime_discover): _mempool { mempool_t(l) }
-    { };
-
-    mpmc_queue() noexcept
-    requires (capacityV != details::constants::runtime_discover) : _mempool { mempool_t() }
-    { };
+    mpmc_queue() noexcept = default;
 
     /**
      * @details Atomically pushes element to the queue
@@ -126,31 +112,18 @@ public:
     bool empty() noexcept;
 };
 
-template<typename dataT, size_t capacityV = details::constants::runtime_discover>
-using bounded_mpmc_queue = mpmc_queue<dataT, capacityV, memory::atomic_fifo>;
-
-template<typename dataT, size_t capacityV = details::constants::runtime_discover>
-using bounded_mpmc_queue_lifo_pool = mpmc_queue<dataT, capacityV, memory::atomic_lifo>;
-
-template<typename dataT>
-using unbounded_mpmc_queue = mpmc_queue<dataT, details::constants::runtime_discover, memory::atomic_freelist>;
-
-} // end namespace nukes
+} // end namespace nukes::dynamic
 
 
 // ================================ DEFINITIONS ================================
 
 
-#define MPMC_QUEUE_MEMBER(member_type)                                             \
-    template <typename dataT,                                                      \
-              nukes::details::constants::hword capacityV,                          \
-              template <typename, nukes::details::constants::hword> typename poolT \
-              >                                                                    \
-    member_type nukes::mpmc_queue <                                                \
-                dataT, capacityV, poolT>::
+#define DYNAMIC_MPMC_QUEUE_MEMBER(member_type)          \
+    template <typename dataT>                           \
+    member_type nukes::dynamic::mpmc_queue <dataT>::
 
 
-MPMC_QUEUE_MEMBER(bool)
+DYNAMIC_MPMC_QUEUE_MEMBER(bool)
 recycle_dummy(node_t*& dummy) noexcept {
 
     if (dummy == &_dummy) [[unlikely]] {
@@ -164,7 +137,7 @@ recycle_dummy(node_t*& dummy) noexcept {
 }
 
 
-MPMC_QUEUE_MEMBER(bool)
+DYNAMIC_MPMC_QUEUE_MEMBER(bool)
 push(details::misc::fn_forward_t<dataT> data) noexcept {
 
     node_t* new_tail { nullptr };
@@ -182,7 +155,7 @@ push(details::misc::fn_forward_t<dataT> data) noexcept {
 }
 
 
-MPMC_QUEUE_MEMBER(bool)
+DYNAMIC_MPMC_QUEUE_MEMBER(bool)
 pop(dataT& data) noexcept {
 
     while (true) {
@@ -211,7 +184,7 @@ pop(dataT& data) noexcept {
 }
 
 
-MPMC_QUEUE_MEMBER(void)
+DYNAMIC_MPMC_QUEUE_MEMBER(void)
 push_node(details::misc::fn_forward_t<node_t> node) noexcept {
 
     node->_next.store(node_t{}, std::memory_order_release);
@@ -225,13 +198,13 @@ push_node(details::misc::fn_forward_t<node_t> node) noexcept {
 }
 
 
-MPMC_QUEUE_MEMBER(void)
+DYNAMIC_MPMC_QUEUE_MEMBER(void)
 release_node(details::misc::fn_forward_t<node_t> node) noexcept {
     return _mempool.sync(node);
 }
 
 
-MPMC_QUEUE_MEMBER(bool)
+DYNAMIC_MPMC_QUEUE_MEMBER(bool)
 pop_node(node_t*& node) noexcept {
 
     while (true) {
@@ -252,7 +225,7 @@ pop_node(node_t*& node) noexcept {
 }
 
 
-MPMC_QUEUE_MEMBER(bool)
+DYNAMIC_MPMC_QUEUE_MEMBER(bool)
 empty() noexcept {
 
     auto head = _head.load(std::memory_order_acquire);
@@ -262,5 +235,5 @@ empty() noexcept {
 }
 
 
-#undef MPMC_QUEUE_MEMBER
-#endif // NUKES_MPMC_QUEUE
+#undef DYNAMIC_MPMC_QUEUE_MEMBER
+#endif // NUKES_DYNAMIC_MPMC_QUEUE

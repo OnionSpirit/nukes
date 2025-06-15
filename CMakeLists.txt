@@ -5,7 +5,6 @@ set(CMAKE_CXX_STANDARD 20)
 
 set(NUKES_SOURCES include
      include/nukes/details
-     include/nukes/memory
      include/nukes
 )
 

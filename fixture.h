@@ -6,10 +6,7 @@
 #include <functional>
 
 
-#include "nukes/memory/atomic_lifo.h"
-#include "nukes/memory/atomic_fifo.h"
-#include "nukes/memory/atomic_freelist.h"
-#include "nukes/memory/atomic_bucketlist.h"
+#include "include/nukes/atomic_freelist.h"
 
 #include "nukes/mpmc_queue.h"
 #include "nukes/mpsc_queue.h"

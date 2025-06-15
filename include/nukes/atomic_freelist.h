@@ -44,9 +44,6 @@ public:
 
     explicit atomic_freelist() noexcept = default;
 
-    // NOTE: Констуктор для совместимости
-    explicit atomic_freelist(details::constants::word = 1024) noexcept {};
-
     ~atomic_freelist() noexcept;
 
     /**
@@ -88,10 +85,11 @@ ATOMIC_FREELIST_MEMBER()
 
     while (_head.load() != nullptr) {
         auto temp = _head.load();
-        if (reinterpret_cast<ulong>(&temp) == reinterpret_cast<ulong>(&_dummy))
-            continue;
-        delete temp;
         _head.store(reinterpret_cast<node_t*>(_head.load()->_next.load()));
+        if (reinterpret_cast<ulong>(temp) == reinterpret_cast<ulong>(&_dummy))
+            continue;
+
+        delete temp;
     }
 }
 
@@ -113,9 +111,9 @@ ATOMIC_FREELIST_MEMBER(bool)
 sync(dataT*& data) noexcept {
 
     auto* new_tail = reinterpret_cast<node_t *>(reinterpret_cast<uint8_t *>(data) - offsetof(node_t, _data));
-    new_tail->_next.store(nullptr, std::memory_order_release);
+    new_tail->_next.store(nullptr, std::memory_order_relaxed);
 
-    node_t *current_tail = _tail.load(std::memory_order_acquire);
+    node_t *current_tail = _tail.load(std::memory_order_relaxed);
     while (not _tail.compare_exchange_weak(current_tail, new_tail
                                            , std::memory_order_release
                                            , std::memory_order_relaxed)) {}

@@ -5,9 +5,7 @@
 
 #include "nukes/details/node_types.h"
 #include "nukes/details/misc.h"
-#include "nukes/memory/atomic_lifo.h"
-#include "nukes/memory/atomic_fifo.h"
-
+#include "nukes/atomic_freelist.h"
 
 
 namespace nukes {
@@ -20,8 +18,8 @@ protected:
 
     typedef details::nodes::stc_node<dataT> node_t;
 
-    std::atomic<details::nodes::stc_node_hdr> _top {};   // NOTE: Квази-указатель вершины
-    memory::atomic_fifo<node_t, ssize> _free_nodes {};   // NOTE: pool аллокатор для хранения памяти под узлы
+    std::atomic<details::nodes::stc_node_hdr> _top {};      // NOTE: Квази-указатель вершины
+    memory::atomic_freelist<node_t, ssize> _free_nodes {};  // NOTE: pool аллокатор для хранения памяти под узлы
 
 public:
 
