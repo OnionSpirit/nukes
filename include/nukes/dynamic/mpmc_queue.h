@@ -23,9 +23,7 @@ namespace nukes::dynamic {
  * @tparam dataT Type that assumed to be used in the queue
  */
 template <typename dataT>
-struct mpmc_queue {
-
-protected:
+class mpmc_queue {
 
     typedef details::nodes::dyn_node<dataT> node_t;     ///< Node type declaration
     typedef atomic_freelist<node_t> mempool_t;  ///< Memory buffer type
@@ -33,18 +31,16 @@ protected:
     class dyn_mpmc_iter {
 
         mpmc_queue* _queue { nullptr };
-        mempool_t* _mempool { nullptr };
 
     public:
-        explicit dyn_mpmc_iter(mpmc_queue* queue, mempool_t* mempool)
-            : _queue(queue)
-            , _mempool(mempool) {}
+        explicit dyn_mpmc_iter(mpmc_queue* queue)
+            : _queue(queue) {}
 
         dyn_mpmc_iter& postfix_increment(node_t*& ptr) {
             node_t* new_ptr = ptr->next(), *next_next_ptr = new_ptr->next();
             if (_queue->recycle_dummy(new_ptr))
                 new_ptr = next_next_ptr;
-            _mempool->sync(ptr);
+            _queue->_mempool.sync(ptr);
             ptr = new_ptr;
             return *this;
         }
@@ -54,13 +50,13 @@ protected:
             node_t* new_ptr = ptr->next(), *next_next_ptr = new_ptr->next();
             if (_queue->recycle_dummy(new_ptr))
                 new_ptr = next_next_ptr;
-            _mempool->sync(ptr);
+            _queue->_mempool.sync(ptr);
             ptr = new_ptr;
             return tmp;
         }
     };
 
-    typedef details::batch<node_t, dyn_mpmc_iter, mpmc_queue*, mempool_t*> batch_t;
+    typedef details::batch<node_t, dyn_mpmc_iter, mpmc_queue*> batch_t;
 
 
     mempool_t _mempool {};  ///< Memory buffer to allocate nodes from
@@ -132,7 +128,7 @@ public:
             } while (not _head.compare_exchange_weak(current_head, current_tail,
                                                      std::memory_order_release,
                                                      std::memory_order_relaxed));
-        return batch_t { current_head, current_tail, this, &_mempool };
+        return batch_t { current_head, current_tail, this };
     }
 
     /**
