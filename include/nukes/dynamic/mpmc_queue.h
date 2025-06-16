@@ -32,19 +32,18 @@ protected:
 
     class dyn_mpmc_iter {
 
-        node_t* _dummy_ptr { nullptr };
+        mpmc_queue* _queue { nullptr };
         mempool_t* _mempool { nullptr };
 
     public:
-        explicit dyn_mpmc_iter(node_t* dummy, mempool_t* mempool)
-            : _dummy_ptr(dummy)
+        explicit dyn_mpmc_iter(mpmc_queue* queue, mempool_t* mempool)
+            : _queue(queue)
             , _mempool(mempool) {}
 
         dyn_mpmc_iter& postfix_increment(node_t*& ptr) {
-            node_t* new_ptr = ptr->next();
-            if (_dummy_ptr and new_ptr == _dummy_ptr) {
-                new_ptr = new_ptr->next();
-            }
+            node_t* new_ptr = ptr->next(), *next_next_ptr = new_ptr->next();
+            if (_queue->recycle_dummy(new_ptr))
+                new_ptr = next_next_ptr;
             _mempool->sync(ptr);
             ptr = new_ptr;
             return *this;
@@ -52,17 +51,16 @@ protected:
 
         dyn_mpmc_iter prefix_increment(node_t*& ptr)  {
             dyn_mpmc_iter tmp = *this;
-            node_t* new_ptr = ptr->next();
-            if (_dummy_ptr and new_ptr == _dummy_ptr) {
-                new_ptr = new_ptr->next();
-            }
+            node_t* new_ptr = ptr->next(), *next_next_ptr = new_ptr->next();
+            if (_queue->recycle_dummy(new_ptr))
+                new_ptr = next_next_ptr;
             _mempool->sync(ptr);
             ptr = new_ptr;
             return tmp;
         }
     };
 
-    typedef details::batch<node_t, dyn_mpmc_iter, node_t*, mempool_t*> batch_t;
+    typedef details::batch<node_t, dyn_mpmc_iter, mpmc_queue*, mempool_t*> batch_t;
 
 
     mempool_t _mempool {};  ///< Memory buffer to allocate nodes from
@@ -134,7 +132,7 @@ public:
             } while (not _head.compare_exchange_weak(current_head, current_tail,
                                                      std::memory_order_release,
                                                      std::memory_order_relaxed));
-        return batch_t { current_head, current_tail, &_dummy, &_mempool };
+        return batch_t { current_head, current_tail, this, &_mempool };
     }
 
     /**
