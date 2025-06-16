@@ -6,87 +6,91 @@
 
 namespace nukes::details {
 
-    template <typename nodeT, typename mempoolT>
+    template <typename nodeT, typename iteratorT>
+    concept is_batch_iterable = requires(nodeT*& node, iteratorT iter) {
+        { iter.postfix_increment(node) } -> std::same_as<iteratorT&>;
+        { iter.prefix_increment(node) } -> std::same_as<iteratorT>;
+    };
+
+    template<typename nodeT, class iteratorImpl, typename ... iteratorImplArgs>
+    class batch_iterator_traits {
+
+        nodeT* _ptr;
+        iteratorImpl _iter;
+
+        static_assert(is_batch_iterable<nodeT, iteratorImpl>,
+            "Iterator implementation is not actually an iterator");
+
+        static_assert(std::constructible_from<iteratorImpl, iteratorImplArgs...>,
+            "Passed iterator can't be constructed from passed args");
+
+    public:
+
+        explicit batch_iterator_traits(nodeT* ptr, iteratorImplArgs&& ... args)
+            : _ptr(ptr)
+            , _iter(std::forward<iteratorImplArgs>(args)...) {}
+
+        auto& operator*() const { return _ptr->_data; }
+        nodeT* operator->() { return _ptr; }
+
+        batch_iterator_traits& operator++() {
+            _iter = _iter.postfix_increment(_ptr);
+            return *this;
+        }
+
+        batch_iterator_traits operator++(int) {
+            _iter = _iter.prefix_increment(_ptr);
+            return *this;
+        }
+
+        bool operator==(const batch_iterator_traits& other) const { return _ptr == other._ptr; }
+        bool operator!=(const batch_iterator_traits& other) const { return _ptr != other._ptr; }
+    };
+
+    template <typename nodeT, class iteratorT, typename ... iteratorArgs>
     class batch {
-
-        static constexpr bool node_t_assert = requires(nodeT node) {
-            node.next();
-            node._data;
-        };
-
-        static constexpr bool mempool_t_assert = requires(nodeT *&node, mempoolT mempool) {
-            { mempool.sync(node) } -> std::same_as<bool>;
-        };
-
-        static_assert(node_t_assert, "field '_next' required for 'nodeT' for iterating");
-
-        static_assert(mempool_t_assert, "method 'sync(node*&)' required for 'mempoolT' for memory management");
 
         nodeT* _head;
         nodeT* _tail;
-        nodeT* _dummy_ptr { nullptr };
-        mempoolT* _mempool;
+        std::tuple<iteratorArgs...> _args{};
 
-        class iterator {
+        //     iterator& operator++() {
+        //         nodeT* new_ptr = _ptr->next();
+        //         if (_dummy_ptr and new_ptr == _dummy_ptr) {
+        //             new_ptr = new_ptr->next();
+        //         }
+        //         _mempool->sync(_ptr);
+        //         _ptr = new_ptr;
+        //         return *this;
+        //     }
 
-            nodeT* _ptr;
-            mempoolT* _mempool;
-            nodeT* _dummy_ptr { nullptr };
-
-        public:
-            explicit iterator(nodeT* ptr, nodeT* dummy, mempoolT* mempool)
-                : _ptr(ptr)
-                , _mempool(mempool)
-                , _dummy_ptr(dummy) {}
-
-            auto& operator*() const { return _ptr->_data; }
-            nodeT* operator->() { return _ptr; }
-
-            iterator& operator++() {
-                nodeT* new_ptr = _ptr->next();
-                if (_dummy_ptr and new_ptr == _dummy_ptr) {
-                    new_ptr = new_ptr->next();
-                }
-                _mempool->sync(_ptr);
-                _ptr = new_ptr;
-                return *this;
-            }
-
-            iterator operator++(int) {
-                iterator tmp = *this;
-                nodeT* new_ptr = _ptr->next();
-                if (_dummy_ptr and new_ptr == _dummy_ptr) {
-                    new_ptr = new_ptr->next();
-                }
-                _mempool->sync(_ptr);
-                _ptr = new_ptr;
-                return tmp;
-            }
-
-            bool operator==(const iterator& other) const { return _ptr == other._ptr; }
-            bool operator!=(const iterator& other) const { return _ptr != other._ptr; }
-        };
+        //     iterator operator++(int) {
+        //         iterator tmp = *this;
+        //         nodeT* new_ptr = _ptr->next();
+        //         if (_dummy_ptr and new_ptr == _dummy_ptr) {
+        //             new_ptr = new_ptr->next();
+        //         }
+        //         _mempool->sync(_ptr);
+        //         _ptr = new_ptr;
+        //         return tmp;
+        //     }
 
     public:
 
         explicit batch() =default;
 
-        explicit batch(nodeT* head, nodeT* tail, mempoolT* mempool)
+        explicit batch(nodeT* head, nodeT* tail, iteratorArgs&& ... args)
             : _head(head)
             , _tail(tail)
-            , _mempool(mempool) {}
+            , _args(args...) {}
 
-        explicit batch(nodeT* head, nodeT* tail, nodeT* dummy, mempoolT* mempool)
-            : _head(head)
-            , _tail(tail)
-            , _dummy_ptr(dummy)
-            , _mempool(mempool) {}
+        typedef batch_iterator_traits<nodeT, iteratorT, iteratorArgs...> iterator_t;
 
-        iterator begin() { return iterator(_head, _dummy_ptr, _mempool); }
-        iterator end() { return iterator(_tail, _dummy_ptr, _mempool); }
+        iterator_t begin() { return iterator_t(_head, std::forward<iteratorArgs>(std::get<iteratorArgs>(_args))...); }
+        iterator_t end() { return iterator_t(_tail, std::forward<iteratorArgs>(std::get<iteratorArgs>(_args))...); }
 
-        iterator begin() const { return iterator(_head, _dummy_ptr, _mempool); }
-        iterator end() const { return iterator(_tail, _dummy_ptr, _mempool); }
+        iterator_t begin() const { return iterator_t(_head, std::forward<iteratorArgs>(std::get<iteratorArgs>(_args))...); }
+        iterator_t end() const { return iterator_t(_tail, std::forward<iteratorArgs>(std::get<iteratorArgs>(_args))...); }
 
     };
 

@@ -30,6 +30,40 @@ protected:
     typedef details::nodes::dyn_node<dataT> node_t;     ///< Node type declaration
     typedef atomic_freelist<node_t> mempool_t;  ///< Memory buffer type
 
+    class dyn_mpmc_iter {
+
+        node_t* _dummy_ptr { nullptr };
+        mempool_t* _mempool { nullptr };
+
+    public:
+        explicit dyn_mpmc_iter(node_t* dummy, mempool_t* mempool)
+            : _dummy_ptr(dummy)
+            , _mempool(mempool) {}
+
+        dyn_mpmc_iter& postfix_increment(node_t*& ptr) {
+            node_t* new_ptr = ptr->next();
+            if (_dummy_ptr and new_ptr == _dummy_ptr) {
+                new_ptr = new_ptr->next();
+            }
+            _mempool->sync(ptr);
+            ptr = new_ptr;
+            return *this;
+        }
+
+        dyn_mpmc_iter prefix_increment(node_t*& ptr)  {
+            dyn_mpmc_iter tmp = *this;
+            node_t* new_ptr = ptr->next();
+            if (_dummy_ptr and new_ptr == _dummy_ptr) {
+                new_ptr = new_ptr->next();
+            }
+            _mempool->sync(ptr);
+            ptr = new_ptr;
+            return tmp;
+        }
+    };
+
+    typedef details::batch<node_t, dyn_mpmc_iter, node_t*, mempool_t*> batch_t;
+
 
     mempool_t _mempool {};  ///< Memory buffer to allocate nodes from
     node_t    _dummy {};    ///< Dummy node instance
@@ -90,8 +124,7 @@ public:
      * @return Объект @b batch содержащий только операции получения итератора,
      * для прохода по списку
      */
-    details::batch<node_t, mempool_t> pop_batch() noexcept {
-        typedef details::batch<node_t, mempool_t> batch_t;
+    batch_t pop_batch() noexcept {
         node_t *current_head = _head.load(std::memory_order_acquire);
         node_t *current_tail;
             do {
