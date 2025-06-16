@@ -37,6 +37,11 @@ protected:
         current_test_name = ::testing::UnitTest::GetInstance()->current_test_info()->name();
     }
 
+    void TearDown() override {
+        threads.clear();
+        std::this_thread::yield();
+    }
+
     /* void TearDown() override { */
 
     /*     ASSERT_TRUE(core.empty()); */

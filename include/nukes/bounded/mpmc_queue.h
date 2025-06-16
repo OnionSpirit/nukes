@@ -181,5 +181,5 @@ empty() noexcept {
     else return false;
 }
 
-#undef MPMC_QUEUE_MEMBER
+#undef BOUNDED_MPMC_QUEUE_MEMBER
 #endif // NUKES_BOUNDED_MPMC_QUEUE

@@ -16,6 +16,8 @@ TEST_F(atomics, do_check_atomic_freelist_consistancy) {
         e.join();
     threads.clear();
 
+    std::this_thread::yield();
+
     std::vector<ulong> allocated_adresses {};
     allocated_adresses.reserve(len);
 
@@ -45,6 +47,8 @@ TEST_F(atomics, do_check_mpmc_consistancy) {
     for (auto& e : threads)
         e.join();
     threads.clear();
+
+    std::this_thread::yield();
 
     std::vector<int> interactive_arr;
     interactive_arr.reserve(len);
@@ -80,6 +84,8 @@ TEST_F(atomics, DISABLED_do_check_dynamic_mpmc_consistancy) {
         e.join();
     threads.clear();
 
+    std::this_thread::yield();
+
     std::vector<int> interactive_arr;
     interactive_arr.reserve(len);
 
@@ -114,6 +120,8 @@ TEST_F(atomics, do_check_dynamic_mpsc_consistancy) {
         e.join();
     threads.clear();
 
+    std::this_thread::yield();
+
     std::vector<int> interactive_arr;
     interactive_arr.reserve(len);
 
@@ -147,6 +155,8 @@ TEST_F(atomics, DISABLED_do_check_dynamic_mpmc_batch) {
     for (auto& e : threads)
         e.join();
     threads.clear();
+
+    std::this_thread::yield();
 
     std::vector<int> interactive_arr;
     interactive_arr.reserve(len);
