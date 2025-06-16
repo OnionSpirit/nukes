@@ -48,8 +48,6 @@ TEST_F(atomics, do_check_mpmc_consistancy) {
         e.join();
     threads.clear();
 
-    std::this_thread::yield();
-
     std::vector<int> interactive_arr;
     interactive_arr.reserve(len);
 

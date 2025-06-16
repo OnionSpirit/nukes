@@ -12,29 +12,50 @@
 
 namespace nukes::bounded {
 
-template <typename dataT, std::size_t capacityV>
+template <
+    typename dataT,
+    details::constants::hword capacityV = details::constants::runtime_discover,
+    details::constants::hword alignmentV = 8
+>
 class spsc_queue {
 
     // NOTE: Важно, т.к. работаем с абсолютными значениями
     static_assert(not ( capacityV & (capacityV - 1) ), "capacityV must be a power of 2");
 
-    struct node {
-        dataT _data;
-    };
+    typedef details::misc::aligned_data<dataT, alignmentV> node_t;
 
-    node _rbuff[capacityV];
+    static constexpr details::constants::hword storage_size_v  {
+        capacityV
+            ? capacityV * sizeof(node_t)
+            : details::constants::word_size
+    };
+    typedef details::misc::meta_data<storage_size_v> storage_t;
 
     // NOTE: Разбиваем головные и хвостовые данные по разным кеш-линиям для предотвращения false sharing
 
+    node_t*                          _buffer   { nullptr };  // NOTE: Буфер хранения памяти
+    const details::constants::word   _capacity { capacityV };
+    alignas(8) storage_t             _storage  {};
+
     // Cache line 1
-    alignas(32) std::atomic<std::size_t> _head{0};
-    alignas(32) std::size_t head_cache{0}; // NOTE: Кеш головы чтобы не грузить голову когда это не обязательно
+    alignas(32) std::atomic<details::constants::hword> _head{0};
+    alignas(32) details::constants::hword head_cache{0}; // NOTE: Кеш головы чтобы не грузить голову когда это не обязательно
 
     // Cache line 2
-    alignas(32) std::atomic<std::size_t> _tail{0};
-    alignas(32) std::size_t tail_cache{0}; // NOTE: Кеш хвоста чтобы не грузить голову когда это не обязательно
+    alignas(32) std::atomic<details::constants::hword> _tail{0};
+    alignas(32) details::constants::hword tail_cache{0}; // NOTE: Кеш хвоста чтобы не грузить голову когда это не обязательно
 
 public:
+
+
+    spsc_queue() noexcept
+        requires ( capacityV != details::constants::runtime_discover );
+
+    spsc_queue(details::constants::word = 1024) noexcept
+        requires ( capacityV == details::constants::runtime_discover );
+
+    ~spsc_queue() noexcept =default;
+
 
     /**
      * @details Atomically pops an element from the queue to the reference
@@ -62,15 +83,34 @@ public:
 
 #define BOUNDED_SPSC_QUEUE_MEMBER(member_type)   \
     template <typename dataT,                    \
-    size_t capacityV                             \
+    details::constants::hword capacityV,                       \
+    details::constants::hword alignmentV                       \
     >                                            \
     member_type nukes::bounded::spsc_queue <     \
-    dataT, capacityV>::
+    dataT, capacityV, alignmentV>::
 
+
+BOUNDED_SPSC_QUEUE_MEMBER()
+spsc_queue() noexcept
+requires ( capacityV != nukes::details::constants::runtime_discover ) {
+    // NOTE: При статическом определении размера ссылаем указатель буфера на начало хранилища,
+    //       их размер соответствует запрошенному через шаблонный параметр
+    _buffer = new (&_storage.template release<dataT>()) dataT[_capacity];
+}
+
+BOUNDED_SPSC_QUEUE_MEMBER()
+spsc_queue(nukes::details::constants::word len) noexcept
+requires(capacityV == nukes::details::constants::runtime_discover)
+: _capacity(len) {
+    // NOTE: При динамическом определении размера, выделяем на куче нужный размер,
+    //       сохраняем указатель в хранилище и записываем его в буфер
+    _storage = new dataT[_capacity];
+    _buffer = _storage.template release<dataT*>();
+}
 
 BOUNDED_SPSC_QUEUE_MEMBER(bool)
 pop(dataT& data) {
-    const std::size_t head = _head.load(std::memory_order_relaxed);
+    const details::constants::hword head = _head.load(std::memory_order_relaxed);
 
     // NOTE: Если голова сравнялась с кешем хвоста
     if (head >= tail_cache) {
@@ -81,7 +121,7 @@ pop(dataT& data) {
             return false;
     }
 
-    data = _rbuff[head % capacityV]._data;
+    data = _buffer[head % _capacity]._data;
     _head.fetch_add(1, std::memory_order_release);
 
     return true;
@@ -89,18 +129,18 @@ pop(dataT& data) {
 
 BOUNDED_SPSC_QUEUE_MEMBER(bool)
 push(nukes::details::misc::fn_forward_t<dataT> data) {
-    const std::size_t tail = _tail.load(std::memory_order_relaxed);
+    const details::constants::hword tail = _tail.load(std::memory_order_relaxed);
 
     // NOTE: Если хвост догнал кеш головы
-    if (tail - head_cache >= capacityV) {
+    if (tail - head_cache >= _capacity) {
         // NOTE: Обновляем кеш
         head_cache = _head.load(std::memory_order_acquire);
         // NOTE: Повторяем проверку с актуальным кешем
-        if (tail - head_cache >= capacityV)
+        if (tail - head_cache >= _capacity)
             return false;
     }
 
-    _rbuff[tail % capacityV]._data = data;
+    _buffer[tail % _capacity]._data = data;
     _tail.fetch_add(1, std::memory_order_release);
 
     return true;

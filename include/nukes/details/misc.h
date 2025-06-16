@@ -37,6 +37,10 @@ namespace nukes::details::misc {
     template<typename T>
     using fn_forward_t = fn_forward<T>::type;
 
+    template <typename dataT, std::size_t alignmentV = 8>
+    struct aligned_data {
+        alignas(alignmentV) dataT _data;
+    };
 
     // NOTE: Тип метаданных, для хранения рабочей информации непосредственно в сущности узла
     template<size_t DataSize = constants::word_size>

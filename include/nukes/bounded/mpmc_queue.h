@@ -11,37 +11,44 @@
 
 namespace nukes::bounded {
 
-template <typename dataT, details::constants::hword lenV = nukes::details::constants::runtime_discover>
+template <
+    typename dataT,
+    details::constants::hword capacityV = details::constants::runtime_discover,
+    details::constants::hword alignmentV = 8
+>
 struct mpmc_queue {
 
 protected:
 
-    typedef std::atomic<bool> meta_info;
     typedef details::constants::hword index_t;
-    typedef std::atomic<details::constants::hword> atomic_index_t;
-    // typedef details::misc::meta_chunk<dataT, sizeof(meta_info)> data_chunk_t;
+    typedef std::atomic<index_t> atomic_index_t;
     typedef std::pair<dataT*, std::size_t> batch_t;
+    typedef details::misc::aligned_data<dataT, alignmentV> node_t;
 
     static constexpr std::size_t storage_size_v  {
-        lenV
-            ? lenV * sizeof(dataT)
+        capacityV
+            ? capacityV * sizeof(node_t)
             : details::constants::word_size
     };
     typedef details::misc::meta_data<storage_size_v> storage_t;
 
-    alignas(8) storage_t             _storage {};
-    dataT*                           _buffer  { nullptr };  // NOTE: Буфер хранения памяти
-    const details::constants::hword  _len     { lenV };
+    node_t*                          _buffer   { nullptr };  // NOTE: Буфер хранения памяти
+    const details::constants::word   _capacity { capacityV };
+    alignas(8) storage_t             _storage  {};
+
+    // Cache line 2
     alignas(64) atomic_index_t       _head    {0}; // NOTE: Индекс головы с защитой от false sharing
+
+    // Cache line 3
     alignas(64) atomic_index_t       _tail    {0}; // NOTE: Индекс хвоста с защитой от false sharing
 
 public:
 
     mpmc_queue() noexcept
-        requires ( lenV != details::constants::runtime_discover );
+        requires ( capacityV != details::constants::runtime_discover );
 
-    mpmc_queue(details::constants::hword = 1024) noexcept
-        requires ( lenV == details::constants::runtime_discover );
+    mpmc_queue(details::constants::word = 1024) noexcept
+        requires ( capacityV == details::constants::runtime_discover );
 
     ~mpmc_queue() noexcept =default;
 
@@ -68,27 +75,30 @@ public:
 
 // ================================ DEFINITIONS ================================
 
-#define BOUNDED_MPMC_QUEUE_MEMBER(member_type)                          \
-    template <typename dataT, nukes::details::constants::hword lenV>    \
-    member_type nukes::bounded::mpmc_queue<dataT, lenV>::
+#define BOUNDED_MPMC_QUEUE_MEMBER(member_type)                             \
+    template <                                                             \
+        typename dataT,                                                    \
+        nukes::details::constants::hword capacityV,                        \
+        nukes::details::constants::hword alignmentV>                       \
+    member_type nukes::bounded::mpmc_queue<dataT, capacityV, alignmentV>::
 
 
 BOUNDED_MPMC_QUEUE_MEMBER()
 mpmc_queue() noexcept
-requires ( lenV != nukes::details::constants::runtime_discover ) {
+requires ( capacityV != nukes::details::constants::runtime_discover ) {
     // NOTE: При статическом определении размера ссылаем указатель буфера на начало хранилища,
     //       их размер соответствует запрошенному через шаблонный параметр
-    _buffer = new (&_storage.template release<dataT>()) dataT[_len];
+    _buffer = new (&_storage.template release<dataT>()) dataT[_capacity];
 }
 
 BOUNDED_MPMC_QUEUE_MEMBER()
-mpmc_queue(nukes::details::constants::hword l) noexcept
-requires(lenV == nukes::details::constants::runtime_discover)
-: _len(l) {
+mpmc_queue(nukes::details::constants::word len) noexcept
+requires(capacityV == nukes::details::constants::runtime_discover)
+: _capacity(len) {
     // NOTE: При динамическом определении размера, выделяем на куче нужный размер,
     //       сохраняем указатель в хранилище и записываем его в буфер
-    _storage = new dataT[_len];
-    _buffer = _storage.template release<dataT*>();
+    _storage = new node_t[_capacity];
+    _buffer = _storage.template release<node_t*>();
 }
 
 
@@ -99,7 +109,7 @@ push(details::misc::fn_forward_t<dataT> data) noexcept {
 
     do {
         current_tail = _tail.load(std::memory_order_relaxed);
-        next_tail = (current_tail + 1) % _len;
+        next_tail = (current_tail + 1) % _capacity;
 
         // NOTE: Проверка что буфер полон
         if (next_tail == _head.load(std::memory_order_acquire))
@@ -110,7 +120,7 @@ push(details::misc::fn_forward_t<dataT> data) noexcept {
                                              std::memory_order_relaxed));
 
     // NOTE: Сохраняем данные в буфер
-    _buffer[current_tail] = std::forward<dataT>(data);
+    _buffer[current_tail]._data = std::forward<dataT>(data);
 
     return true;
 }
@@ -127,13 +137,13 @@ pop(dataT& data) noexcept {
         if (current_head == _tail.load(std::memory_order_acquire))
             return false;
 
-        next_head = (current_head + 1) % _len;
+        next_head = (current_head + 1) % _capacity;
     } while (not _head.compare_exchange_weak(current_head, next_head,
                                              std::memory_order_release,
                                              std::memory_order_relaxed));
 
     // NOTE: Читаем данные из буфера
-    data = std::forward<dataT>(_buffer[current_head]);
+    data = std::forward<dataT>(_buffer[current_head]._data);
 
     return true;
 }
