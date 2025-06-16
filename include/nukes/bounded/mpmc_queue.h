@@ -2,9 +2,7 @@
 #define NUKES_BOUNDED_MPMC_QUEUE
 
 #include <atomic>
-#include <cstdint>
 #include <tuple>
-#include <sys/types.h>
 #include "nukes/details/constants.h"
 #include "nukes/details/node_types.h"
 #include "nukes/details/misc.h"

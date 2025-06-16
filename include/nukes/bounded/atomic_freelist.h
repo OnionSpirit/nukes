@@ -90,6 +90,8 @@ ATOMIC_FREELIST_MEMBER()
             continue;
 
         delete temp;
+        if (_tail.load() == temp)
+            _head.store(nullptr);
     }
 }
 

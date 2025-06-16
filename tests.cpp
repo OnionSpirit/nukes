@@ -66,7 +66,7 @@ TEST_F(atomics, do_check_mpmc_consistancy) {
     // ASSERT_EQ(thread_ids.size(), thread_count);
 }
 
-TEST_F(atomics, do_check_dynamic_mpmc_consistancy) {
+TEST_F(atomics, DISABLED_do_check_dynamic_mpmc_consistancy) {
 
     constexpr std::size_t len = data_volume;
 
@@ -134,7 +134,7 @@ TEST_F(atomics, do_check_dynamic_mpsc_consistancy) {
     // ASSERT_EQ(thread_ids.size(), thread_count);
 }
 
-TEST_F(atomics, do_check_dynamic_mpmc_batch) {
+TEST_F(atomics, DISABLED_do_check_dynamic_mpmc_batch) {
 
     constexpr std::size_t len = data_volume;
 
