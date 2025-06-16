@@ -11,7 +11,7 @@
 #include "constants.h"
 #include "nukes/details/node_types.h"
 #include "nukes/details/misc.h"
-#include "../bounded/atomic_freelist.h"
+#include "atomic_freelist.h"
 
 
 namespace nukes::dynamic {
@@ -27,7 +27,7 @@ struct mpsc_queue {
 protected:
 
     typedef details::nodes::dyn_node<dataT> node_t;      ///< Node type declaration
-    typedef memory::atomic_freelist<node_t> mempool_t;   ///< Memory buffer type
+    typedef atomic_freelist<node_t> mempool_t;   ///< Memory buffer type
 
     node_t    _dummy {};    ///< Dummy node instance
 

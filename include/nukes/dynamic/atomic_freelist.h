@@ -2,8 +2,8 @@
  * @file
  * @details Contains atomic_freelist declaration
  */
-#ifndef NUKES_MEMORY_ATOMIC_FREELIST
-#define NUKES_MEMORY_ATOMIC_FREELIST
+#ifndef NUKES_DYNAMIC_ATOMIC_FREELIST
+#define NUKES_DYNAMIC_ATOMIC_FREELIST
 
 
 #include <atomic>
@@ -14,7 +14,7 @@
 #include "nukes/details/misc.h"
 
 
-namespace nukes::memory {
+namespace nukes::dynamic {
 
 
 /**
@@ -76,11 +76,11 @@ public:
 
 // ================================ DEFINITIONS ================================
 
-#define ATOMIC_FREELIST_MEMBER(member_type)                     \
+#define DYNAMIC_ATOMIC_FREELIST_MEMBER(member_type)                     \
     template <typename dataT, size_t _ >                        \
-        member_type nukes::memory::atomic_freelist <dataT, _>::
+        member_type nukes::dynamic::atomic_freelist <dataT, _>::
 
-ATOMIC_FREELIST_MEMBER()
+DYNAMIC_ATOMIC_FREELIST_MEMBER()
 ~atomic_freelist() noexcept {
 
     while (_head.load() != nullptr) {
@@ -90,12 +90,14 @@ ATOMIC_FREELIST_MEMBER()
             continue;
 
         delete temp;
-        if (_tail.load() == temp)
+        if (_tail.load() == temp) {
             _head.store(nullptr);
+            _tail.store(nullptr);
+        }
     }
 }
 
-ATOMIC_FREELIST_MEMBER(bool)
+DYNAMIC_ATOMIC_FREELIST_MEMBER(bool)
 recycle_dummy(node_t*& dummy) noexcept {
 
     if (dummy == &_dummy) [[unlikely]] {
@@ -109,7 +111,7 @@ recycle_dummy(node_t*& dummy) noexcept {
 }
 
 
-ATOMIC_FREELIST_MEMBER(bool)
+DYNAMIC_ATOMIC_FREELIST_MEMBER(bool)
 sync(dataT*& data) noexcept {
 
     auto* new_tail = reinterpret_cast<node_t *>(reinterpret_cast<uint8_t *>(data) - offsetof(node_t, _data));
@@ -126,7 +128,7 @@ sync(dataT*& data) noexcept {
 }
 
 
-ATOMIC_FREELIST_MEMBER(bool)
+DYNAMIC_ATOMIC_FREELIST_MEMBER(bool)
 capture(dataT*& data) noexcept {
     while (true) {
         node_t *new_head, *current_head = _head.load(std::memory_order_acquire);
@@ -159,8 +161,7 @@ capture(dataT*& data) noexcept {
     }
 }
 
-
-ATOMIC_FREELIST_MEMBER(bool)
+DYNAMIC_ATOMIC_FREELIST_MEMBER(bool)
 empty() noexcept {
 
     auto head = _head.load(std::memory_order_acquire);
@@ -170,5 +171,5 @@ empty() noexcept {
 }
 
 
-#undef ATOMIC_FREELIST_MEMBER
-#endif // NUKES_MEMORY_ATOMIC_FREELIST
+#undef DYNAMIC_ATOMIC_FREELIST_MEMBER
+#endif // NUKES_DYNAM_ATOMIC_FREELIST

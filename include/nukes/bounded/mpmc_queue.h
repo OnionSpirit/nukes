@@ -16,9 +16,10 @@ template <
     details::constants::hword capacityV = details::constants::runtime_discover,
     details::constants::hword alignmentV = 8
 >
-struct mpmc_queue {
+class mpmc_queue {
 
-protected:
+    // NOTE: Важно, т.к. работаем с абсолютными значениями
+    static_assert(not ( capacityV & (capacityV - 1) ), "capacityV must be a power of 2");
 
     typedef details::constants::hword index_t;
     typedef std::atomic<index_t> atomic_index_t;
@@ -36,10 +37,10 @@ protected:
     const details::constants::word   _capacity { capacityV };
     alignas(8) storage_t             _storage  {};
 
-    // Cache line 2
+    // Cache line 1
     alignas(64) atomic_index_t       _head    {0}; // NOTE: Индекс головы с защитой от false sharing
 
-    // Cache line 3
+    // Cache line 2
     alignas(64) atomic_index_t       _tail    {0}; // NOTE: Индекс хвоста с защитой от false sharing
 
 public:
@@ -88,13 +89,13 @@ mpmc_queue() noexcept
 requires ( capacityV != nukes::details::constants::runtime_discover ) {
     // NOTE: При статическом определении размера ссылаем указатель буфера на начало хранилища,
     //       их размер соответствует запрошенному через шаблонный параметр
-    _buffer = new (&_storage.template release<dataT>()) dataT[_capacity];
+    _buffer = new (&_storage.template release<node_t>()) node_t[_capacity];
 }
 
 BOUNDED_MPMC_QUEUE_MEMBER()
-mpmc_queue(nukes::details::constants::word len) noexcept
+mpmc_queue(nukes::details::constants::word capacity) noexcept
 requires(capacityV == nukes::details::constants::runtime_discover)
-: _capacity(len) {
+: _capacity(capacity) {
     // NOTE: При динамическом определении размера, выделяем на куче нужный размер,
     //       сохраняем указатель в хранилище и записываем его в буфер
     _storage = new node_t[_capacity];

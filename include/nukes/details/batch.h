@@ -24,22 +24,29 @@ namespace nukes::details {
 
         nodeT* _head;
         nodeT* _tail;
-
+        nodeT* _dummy_ptr { nullptr };
         mempoolT* _mempool;
 
         class iterator {
 
             nodeT* _ptr;
             mempoolT* _mempool;
+            nodeT* _dummy_ptr { nullptr };
 
         public:
-            explicit iterator(nodeT* ptr, mempoolT* mempool) : _ptr(ptr), _mempool(mempool) {}
+            explicit iterator(nodeT* ptr, nodeT* dummy, mempoolT* mempool)
+                : _ptr(ptr)
+                , _mempool(mempool)
+                , _dummy_ptr(dummy) {}
 
             auto& operator*() const { return _ptr->_data; }
             nodeT* operator->() { return _ptr; }
 
             iterator& operator++() {
                 nodeT* new_ptr = _ptr->next();
+                if (_dummy_ptr and new_ptr == _dummy_ptr) {
+                    new_ptr = new_ptr->next();
+                }
                 _mempool->sync(_ptr);
                 _ptr = new_ptr;
                 return *this;
@@ -48,6 +55,9 @@ namespace nukes::details {
             iterator operator++(int) {
                 iterator tmp = *this;
                 nodeT* new_ptr = _ptr->next();
+                if (_dummy_ptr and new_ptr == _dummy_ptr) {
+                    new_ptr = new_ptr->next();
+                }
                 _mempool->sync(_ptr);
                 _ptr = new_ptr;
                 return tmp;
@@ -66,11 +76,17 @@ namespace nukes::details {
             , _tail(tail)
             , _mempool(mempool) {}
 
-        iterator begin() { return iterator(_head, _mempool); }
-        iterator end() { return iterator(_tail, _mempool); }
+        explicit batch(nodeT* head, nodeT* tail, nodeT* dummy, mempoolT* mempool)
+            : _head(head)
+            , _tail(tail)
+            , _dummy_ptr(dummy)
+            , _mempool(mempool) {}
 
-        iterator begin() const { return iterator(_head, _mempool); }
-        iterator end() const { return iterator(_tail, _mempool); }
+        iterator begin() { return iterator(_head, _dummy_ptr, _mempool); }
+        iterator end() { return iterator(_tail, _dummy_ptr, _mempool); }
+
+        iterator begin() const { return iterator(_head, _dummy_ptr, _mempool); }
+        iterator end() const { return iterator(_tail, _dummy_ptr, _mempool); }
 
     };
 

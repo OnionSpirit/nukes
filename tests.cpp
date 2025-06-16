@@ -6,7 +6,7 @@ TEST_F(atomics, do_check_atomic_freelist_consistancy) {
 
     constexpr std::size_t len = data_volume;
 
-    typedef nukes::memory::atomic_freelist<int> container_t;
+    typedef nukes::dynamic::atomic_freelist<int> container_t;
     container_t container{};
 
     for (int i =0; i < thread_count; ++i)
@@ -68,7 +68,35 @@ TEST_F(atomics, do_check_mpmc_consistancy) {
     // ASSERT_EQ(thread_ids.size(), thread_count);
 }
 
-TEST_F(atomics, DISABLED_do_check_dynamic_mpmc_consistancy) {
+TEST_F(atomics, do_check_spsc_consistancy) {
+
+    constexpr std::size_t len = data_volume;
+
+    typedef nukes::bounded::spsc_queue<int> container_t;
+    container_t container{len};
+
+    for (int i =0; i < 1; ++i)
+        threads.emplace_back(thr_spsc_container_walker<container_t>, std::ref(container));
+
+    for (auto& e : threads)
+        e.join();
+    threads.clear();
+
+    std::vector<int> interactive_arr;
+    interactive_arr.reserve(len);
+
+    for (int interactive =0, i =0; i < len; ++i) {
+        container.pop(interactive);
+        interactive_arr.emplace_back(interactive);
+    }
+
+    ASSERT_EQ(interactive_arr.size(), len);
+
+    for (int i =0; i < len; ++i)
+        EXPECT_EQ(i, interactive_arr[i]);
+}
+
+TEST_F(atomics, do_check_dynamic_mpmc_consistancy) {
 
     constexpr std::size_t len = data_volume;
 
@@ -140,7 +168,7 @@ TEST_F(atomics, do_check_dynamic_mpsc_consistancy) {
     // ASSERT_EQ(thread_ids.size(), thread_count);
 }
 
-TEST_F(atomics, DISABLED_do_check_dynamic_mpmc_batch) {
+TEST_F(atomics, do_check_dynamic_mpmc_batch) {
 
     constexpr std::size_t len = data_volume;
 
@@ -163,6 +191,7 @@ TEST_F(atomics, DISABLED_do_check_dynamic_mpmc_batch) {
         interactive_arr.emplace_back(interactive);
     }
 
+    ASSERT_TRUE(container.empty());
     ASSERT_EQ(interactive_arr.size(), len);
     //
     // std::unordered_set<int> thread_ids;

@@ -12,7 +12,7 @@
 #include "nukes/details/node_types.h"
 #include "nukes/details/misc.h"
 #include "nukes/details/batch.h"
-#include "../bounded/atomic_freelist.h"
+#include "atomic_freelist.h"
 
 
 namespace nukes::dynamic {
@@ -28,7 +28,7 @@ struct mpmc_queue {
 protected:
 
     typedef details::nodes::dyn_node<dataT> node_t;     ///< Node type declaration
-    typedef memory::atomic_freelist<node_t> mempool_t;  ///< Memory buffer type
+    typedef atomic_freelist<node_t> mempool_t;  ///< Memory buffer type
 
 
     mempool_t _mempool {};  ///< Memory buffer to allocate nodes from
@@ -101,7 +101,7 @@ public:
             } while (not _head.compare_exchange_weak(current_head, current_tail,
                                                      std::memory_order_release,
                                                      std::memory_order_relaxed));
-        return batch_t { current_head, current_tail, &_mempool };
+        return batch_t { current_head, current_tail, &_dummy, &_mempool };
     }
 
     /**

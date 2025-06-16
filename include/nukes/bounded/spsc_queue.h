@@ -3,11 +3,9 @@
 
 #include <atomic>
 
-#include "constants.h"
-#include "nukes/details/node_types.h"
+#include "nukes/details/constants.h"
 #include "nukes/details/misc.h"
 #include "nukes/details/batch.h"
-#include "nukes/memory/atomic_bucketlist.h"
 
 
 namespace nukes::bounded {
@@ -83,8 +81,8 @@ public:
 
 #define BOUNDED_SPSC_QUEUE_MEMBER(member_type)   \
     template <typename dataT,                    \
-    details::constants::hword capacityV,                       \
-    details::constants::hword alignmentV                       \
+    nukes::details::constants::hword capacityV,  \
+    nukes::details::constants::hword alignmentV  \
     >                                            \
     member_type nukes::bounded::spsc_queue <     \
     dataT, capacityV, alignmentV>::
@@ -95,17 +93,17 @@ spsc_queue() noexcept
 requires ( capacityV != nukes::details::constants::runtime_discover ) {
     // NOTE: При статическом определении размера ссылаем указатель буфера на начало хранилища,
     //       их размер соответствует запрошенному через шаблонный параметр
-    _buffer = new (&_storage.template release<dataT>()) dataT[_capacity];
+    _buffer = new (&_storage.template release<node_t>()) node_t[_capacity];
 }
 
 BOUNDED_SPSC_QUEUE_MEMBER()
-spsc_queue(nukes::details::constants::word len) noexcept
+spsc_queue(nukes::details::constants::word capacity) noexcept
 requires(capacityV == nukes::details::constants::runtime_discover)
-: _capacity(len) {
+: _capacity(capacity) {
     // NOTE: При динамическом определении размера, выделяем на куче нужный размер,
     //       сохраняем указатель в хранилище и записываем его в буфер
-    _storage = new dataT[_capacity];
-    _buffer = _storage.template release<dataT*>();
+    _storage = new node_t[_capacity];
+    _buffer = _storage.template release<node_t*>();
 }
 
 BOUNDED_SPSC_QUEUE_MEMBER(bool)
