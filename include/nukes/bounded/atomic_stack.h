@@ -5,7 +5,7 @@
 
 #include "nukes/details/node_types.h"
 #include "nukes/details/misc.h"
-#include "nukes/atomic_freelist.h"
+#include "atomic_freelist.h"
 
 
 namespace nukes {

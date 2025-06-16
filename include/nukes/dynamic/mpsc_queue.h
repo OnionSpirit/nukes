@@ -11,7 +11,7 @@
 #include "constants.h"
 #include "nukes/details/node_types.h"
 #include "nukes/details/misc.h"
-#include "nukes/atomic_freelist.h"
+#include "../bounded/atomic_freelist.h"
 
 
 namespace nukes::dynamic {
@@ -29,11 +29,12 @@ protected:
     typedef details::nodes::dyn_node<dataT> node_t;      ///< Node type declaration
     typedef memory::atomic_freelist<node_t> mempool_t;   ///< Memory buffer type
 
-    mempool_t _mempool {};  ///< Memory buffer to allocate nodes from
     node_t    _dummy {};    ///< Dummy node instance
 
-    alignas(64) node_t*              _head { &_dummy }; ///< Head pointer
-    alignas(64) std::atomic<node_t*> _tail { &_dummy };          ///< Tail pointer
+    alignas(64) node_t*              _head { &_dummy };  ///< Head pointer
+    alignas(64) std::atomic<node_t*> _tail { &_dummy };  ///< Tail pointer
+
+    mempool_t _mempool {};  ///< Memory buffer to allocate nodes from
 
     /**
      * @details Recycles node, if it's dummy, to the end of the queue

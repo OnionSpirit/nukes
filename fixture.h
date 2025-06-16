@@ -6,12 +6,12 @@
 #include <functional>
 
 
-#include "include/nukes/atomic_freelist.h"
+#include "include/nukes/bounded/atomic_freelist.h"
 
-#include "nukes/mpmc_queue.h"
-#include "nukes/mpsc_queue.h"
-#include "nukes/atomic_stack.h"
-#include "nukes/atomic_ringbuf.h"
+#include "include/nukes/dynamic/mpmc_queue.h"
+#include "include/nukes/dynamic/mpsc_queue.h"
+#include "include/nukes/bounded/atomic_stack.h"
+#include "include/nukes/bounded/mpmc_queue.h"
 
 
 static inline std::string current_test_name {};
@@ -71,8 +71,10 @@ public:
         int _thread_id = std::stoi(_thread_alias_string.substr(0, 6));
 
         for (int interactive =0, i =0; i < data_volume / thread_count; ++i) {
-                container.push(_thread_id);
-                container.pop(interactive);
+            container.push(_thread_id);
+            // if (not container.push(_thread_id))
+            //     std::cout << "[WARN]: Push skipped on thread - " << _thread_id << '\n';
+            if (container.pop(interactive))
                 arr.emplace_back(interactive);
         }
 

@@ -12,7 +12,7 @@
 #include "nukes/details/node_types.h"
 #include "nukes/details/misc.h"
 #include "nukes/details/batch.h"
-#include "nukes/atomic_freelist.h"
+#include "../bounded/atomic_freelist.h"
 
 
 namespace nukes::dynamic {
