@@ -199,7 +199,8 @@ pop(dataT& data) noexcept {
             //     current_head = _head.load(std::memory_order_relaxed);
             //     goto loop_begin;
             // }
-        } while (not _head.compare_exchange_weak(current_head, new_head, std::memory_order_release,
+        } while (not _head.compare_exchange_weak(current_head, new_head,
+                                                 std::memory_order_release,
                                                  std::memory_order_relaxed));
 
         auto* pop_node = std::forward<node_t*>(current_head);
@@ -235,12 +236,14 @@ DYNAMIC_MPMC_QUEUE_MEMBER(bool)
 pop_node(node_t*& node) noexcept {
 
     while (true) {
-        node_t new_head, current_head = _head.load(std::memory_order_acquire);
+        node_t new_head;
+        node_t current_head = _head.load(std::memory_order_acquire);
 
         do {if (not current_head) [[unlikely]] return false;
             new_head = reinterpret_cast<node_t *>(current_head)->_next.load()._node;
             if (not new_head) [[unlikely]] return false;
-        } while (not _head.compare_exchange_weak(current_head, new_head, std::memory_order_release,
+        } while (not _head.compare_exchange_weak(current_head, new_head,
+                                                 std::memory_order_release,
                                                  std::memory_order_relaxed));
 
         node = std::forward<node_t*>(reinterpret_cast<node_t*>(current_head));

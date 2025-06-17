@@ -105,47 +105,38 @@ requires(capacityV == nukes::details::constants::runtime_discover)
 
 BOUNDED_MPMC_QUEUE_MEMBER(bool)
 push(details::misc::fn_forward_t<dataT> data) noexcept {
-
-    index_t current_tail, next_tail;
-
+    index_t current_tail = _tail.load(std::memory_order_relaxed);
+    index_t next_tail;
     do {
-        current_tail = _tail.load(std::memory_order_relaxed);
-        next_tail = (current_tail + 1) % _capacity;
-
-        // NOTE: Проверка что буфер полон
-        if (next_tail == _head.load(std::memory_order_acquire))
+        // NOTE: Проверка, что буфер полон
+        if (_head.load(std::memory_order_acquire) >= current_tail)
             return false;
 
+        next_tail = current_tail + 1;
     } while (not _tail.compare_exchange_weak(current_tail, next_tail,
                                              std::memory_order_release,
                                              std::memory_order_relaxed));
-
     // NOTE: Сохраняем данные в буфер
-    _buffer[current_tail]._data = std::forward<dataT>(data);
-
+    _buffer[current_tail % _capacity]._data = std::forward<dataT>(data);
     return true;
 }
 
 
 BOUNDED_MPMC_QUEUE_MEMBER(bool)
 pop(dataT& data) noexcept {
-
-    index_t current_head, next_head;
+    index_t current_head = _head.load(std::memory_order_relaxed);
+    index_t next_head;
     do {
-        current_head = _head.load(std::memory_order_relaxed);
-
-        // NOTE: Проверяем что буфер не пуст
-        if (current_head == _tail.load(std::memory_order_acquire))
+        // NOTE: Проверяем, что буфер не пуст
+        if (current_head >= _tail.load(std::memory_order_acquire))
             return false;
 
-        next_head = (current_head + 1) % _capacity;
+        next_head = current_head + 1;
     } while (not _head.compare_exchange_weak(current_head, next_head,
                                              std::memory_order_release,
                                              std::memory_order_relaxed));
-
     // NOTE: Читаем данные из буфера
-    data = std::forward<dataT>(_buffer[current_head]._data);
-
+    data = std::forward<dataT>(_buffer[current_head % _capacity]._data);
     return true;
 }
 
