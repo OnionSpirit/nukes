@@ -38,10 +38,10 @@ class mpmc_queue {
     alignas(8) storage_t             _storage  {};
 
     // Cache line 1
-    alignas(64) atomic_index_t       _head    {0}; // NOTE: Индекс головы с защитой от false sharing
+    alignas(64) atomic_index_t       _head       {0}; // NOTE: Индекс головы с защитой от false sharing
 
     // Cache line 2
-    alignas(64) atomic_index_t       _tail    {0}; // NOTE: Индекс хвоста с защитой от false sharing
+    alignas(64) atomic_index_t       _tail       {0}; // NOTE: Индекс хвоста с защитой от false sharing
 
 public:
 
@@ -109,7 +109,7 @@ push(details::misc::fn_forward_t<dataT> data) noexcept {
     index_t next_tail;
     do {
         // NOTE: Проверка, что буфер полон
-        if (_head.load(std::memory_order_acquire) >= current_tail)
+        if (current_tail - _head.load(std::memory_order_acquire) >= _capacity)
             return false;
 
         next_tail = current_tail + 1;
@@ -180,7 +180,8 @@ empty() noexcept {
     auto head = _head.load(std::memory_order_acquire);
     if (_tail.compare_exchange_weak(head, head, std::memory_order_release, std::memory_order_relaxed))
         return true;
-    else return false;
+    else
+        return false;
 }
 
 #undef BOUNDED_MPMC_QUEUE_MEMBER

@@ -37,11 +37,11 @@ class spsc_queue {
 
     // Cache line 1
     alignas(32) std::atomic<details::constants::hword> _head{0};
-    alignas(32) details::constants::hword head_cache{0}; // NOTE: Кеш головы чтобы не грузить голову когда это не обязательно
+    alignas(32) details::constants::hword tail_cache{0}; // NOTE: Кеш хвоста чтобы не грузить голову когда это не обязательно
 
     // Cache line 2
     alignas(32) std::atomic<details::constants::hword> _tail{0};
-    alignas(32) details::constants::hword tail_cache{0}; // NOTE: Кеш хвоста чтобы не грузить голову когда это не обязательно
+    alignas(32) details::constants::hword head_cache{0}; // NOTE: Кеш головы чтобы не грузить голову когда это не обязательно
 
 public:
 
