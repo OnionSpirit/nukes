@@ -59,6 +59,9 @@ public:
     // NOTE: Чтение из головы
     [[nodiscard]] bool pop(dataT& data) noexcept;
 
+    // NOTE: Очистка буфера, конструирование дефолтных значений объекта
+    void clear() noexcept;
+
     /**
      * @details Weak operation, can show that empty queue is not empty,
      * but it will never show that not empty queue is empty
@@ -102,14 +105,20 @@ requires(capacityV == nukes::details::constants::runtime_discover)
     _buffer = _storage.template release<node_t*>();
 }
 
+BOUNDED_MPMC_QUEUE_MEMBER(void)
+clear() noexcept {
+    for (int i = 0; i < _capacity; ++i)
+        new (&_buffer[i]._data) dataT();
+}
 
 BOUNDED_MPMC_QUEUE_MEMBER(bool)
 push(details::misc::fn_forward_t<dataT> data) noexcept {
+    index_t current_head = _head.load(std::memory_order_relaxed);
     index_t current_tail = _tail.load(std::memory_order_relaxed);
     index_t next_tail;
     do {
         // NOTE: Проверка, что буфер полон
-        if (current_tail - _head.load(std::memory_order_acquire) >= _capacity)
+        if (current_tail - current_head >= _capacity)
             return false;
 
         next_tail = current_tail + 1;
@@ -125,10 +134,11 @@ push(details::misc::fn_forward_t<dataT> data) noexcept {
 BOUNDED_MPMC_QUEUE_MEMBER(bool)
 pop(dataT& data) noexcept {
     index_t current_head = _head.load(std::memory_order_relaxed);
+    index_t current_tail = _tail.load(std::memory_order_relaxed);
     index_t next_head;
     do {
         // NOTE: Проверяем, что буфер не пуст
-        if (current_head >= _tail.load(std::memory_order_acquire))
+        if (current_head >= current_tail)
             return false;
 
         next_head = current_head + 1;
