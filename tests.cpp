@@ -218,3 +218,40 @@ TEST_F(atomics, DISABLED_do_check_dynamic_mpmc_batch) {
 
     ASSERT_EQ(thread_ids.size(), thread_count);
 }
+
+TEST_F(atomics, DISABLED_do_check_bounded_mpmc_batch) {
+
+    constexpr std::size_t len = data_volume;
+
+    typedef nukes::bounded::mpmc_queue<int> container_t;
+    container_t container{len};
+    container.clear();
+
+    for (int i =0; i < thread_count; ++i)
+        threads.emplace_back(thr_mpmc_container_walker<container_t>, std::ref(container));
+
+    for (auto& e : threads)
+        e.join();
+    threads.clear();
+
+    std::this_thread::yield();
+
+    std::vector<int> interactive_arr;
+    interactive_arr.reserve(len);
+
+    for (auto& interactive : container.pop_batch()) {
+        interactive_arr.emplace_back(interactive);
+    }
+
+    ASSERT_TRUE(container.empty());
+    ASSERT_EQ(interactive_arr.size(), len);
+
+    std::unordered_set<int> thread_ids;
+
+    for (auto& el : interactive_arr) {
+        if (el == 0) continue;
+        thread_ids.insert(el);
+    }
+
+    ASSERT_EQ(thread_ids.size(), thread_count);
+}

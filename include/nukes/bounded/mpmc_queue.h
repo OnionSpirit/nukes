@@ -23,7 +23,6 @@ class mpmc_queue {
 
     typedef details::constants::hword index_t;
     typedef std::atomic<index_t> atomic_index_t;
-    typedef std::pair<dataT*, std::size_t> batch_t;
     typedef details::misc::aligned_data<dataT, alignmentV> node_t;
 
     static constexpr std::size_t storage_size_v  {
@@ -32,6 +31,28 @@ class mpmc_queue {
             : details::constants::word_size
     };
     typedef details::misc::meta_data<storage_size_v> storage_t;
+
+    class bou_mpmc_iter {
+
+        mpmc_queue* _queue { nullptr };
+
+    public:
+        explicit bou_mpmc_iter(mpmc_queue* queue)
+            : _queue(queue) {}
+
+        bou_mpmc_iter& postfix_increment(node_t*& ptr) {
+            ptr += 1;
+            return *this;
+        }
+
+        bou_mpmc_iter prefix_increment(node_t*& ptr)  {
+            bou_mpmc_iter tmp = *this;
+            ptr += 1;
+            return tmp;
+        }
+    };
+
+    typedef details::batch<node_t, bou_mpmc_iter, mpmc_queue*> batch_t;
 
     node_t*                          _buffer   { nullptr };  // NOTE: Буфер хранения памяти
     const details::constants::word   _capacity { capacityV };
@@ -69,8 +90,25 @@ public:
      */
     bool empty() noexcept;
 
-    // // NOTE: Чтение пачки из головы
-    // [[nodiscard]] std::pair<dataT*, std::size_t> pop_batch() noexcept;
+
+    batch_t pop_batch() noexcept {
+        index_t current_head = _head.load(std::memory_order_relaxed);
+        index_t current_tail = _tail.load(std::memory_order_relaxed);
+        index_t next_head;
+        do {
+            // NOTE: Проверяем, что буфер не пуст
+            if (current_head >= current_tail)
+                return batch_t { nullptr, nullptr, this };
+
+            next_head = current_tail;
+        } while (not _head.compare_exchange_weak(current_head, next_head,
+                                                 std::memory_order_release,
+                                                 std::memory_order_relaxed));
+
+        return batch_t { &_buffer[current_head % _capacity], &_buffer[current_tail % _capacity], this };
+    }
+
+
 };
 
 
