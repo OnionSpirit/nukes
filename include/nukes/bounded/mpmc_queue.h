@@ -59,10 +59,12 @@ class mpmc_queue {
     alignas(8) storage_t             _storage  {};
 
     // Cache line 1
-    alignas(64) atomic_index_t       _head       {0}; // NOTE: Индекс головы с защитой от false sharing
+    alignas(32) atomic_index_t  _head       {0}; // NOTE: Индекс головы с защитой от false sharing
+    alignas(32) index_t         _cache_tail {0}; // NOTE: Кеш индекса хвоста с защитой от false sharing
 
     // Cache line 2
-    alignas(64) atomic_index_t       _tail       {0}; // NOTE: Индекс хвоста с защитой от false sharing
+    alignas(32) atomic_index_t  _tail       {0}; // NOTE: Индекс хвоста с защитой от false sharing
+    alignas(32) index_t         _cache_head {0}; // NOTE: Кеш индекса головы с защитой от false sharing
 
 public:
 
@@ -124,7 +126,6 @@ public:
         nukes::details::constants::hword alignmentV>                       \
     member_type nukes::bounded::mpmc_queue<dataT, capacityV, alignmentV>::
 
-
 BOUNDED_MPMC_QUEUE_MEMBER()
 mpmc_queue() noexcept
 requires ( capacityV != nukes::details::constants::runtime_discover ) {
@@ -151,13 +152,15 @@ clear() noexcept {
 
 BOUNDED_MPMC_QUEUE_MEMBER(bool)
 push(details::misc::fn_forward_t<dataT> data) noexcept {
-    index_t current_head = _head.load(std::memory_order_relaxed);
     index_t current_tail = _tail.load(std::memory_order_relaxed);
     index_t next_tail;
     do {
         // NOTE: Проверка, что буфер полон
-        if (current_tail - current_head >= _capacity)
-            return false;
+        if (current_tail - _cache_head >= _capacity) {
+            _cache_head = _head.load(std::memory_order_acquire);
+            if (current_tail - _cache_head >= _capacity)
+                return false;
+        }
 
         next_tail = current_tail + 1;
     } while (not _tail.compare_exchange_weak(current_tail, next_tail,
@@ -172,12 +175,14 @@ push(details::misc::fn_forward_t<dataT> data) noexcept {
 BOUNDED_MPMC_QUEUE_MEMBER(bool)
 pop(dataT& data) noexcept {
     index_t current_head = _head.load(std::memory_order_relaxed);
-    index_t current_tail = _tail.load(std::memory_order_relaxed);
     index_t next_head;
     do {
         // NOTE: Проверяем, что буфер не пуст
-        if (current_head >= current_tail)
-            return false;
+        if (current_head >= _cache_tail) {
+            _cache_tail = _tail.load(std::memory_order_acquire);
+            if (current_head >= _cache_tail)
+                return false;
+        }
 
         next_head = current_head + 1;
     } while (not _head.compare_exchange_weak(current_head, next_head,
