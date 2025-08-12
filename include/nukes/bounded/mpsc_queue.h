@@ -24,6 +24,7 @@ class mpsc_queue {
     typedef details::constants::hword index_t;
     struct handle { index_t index{0}; index_t cache{0}; };
     typedef std::atomic<handle> atomic_handle_t;
+    typedef std::atomic<index_t> atomic_index_t;
     typedef details::misc::aligned_data<dataT, alignmentV> node_t;
 
     static constexpr std::size_t storage_size_v  {
@@ -63,7 +64,7 @@ class mpsc_queue {
     alignas(64) atomic_handle_t  _head       {}; // NOTE: Индекс головы с защитой от false sharing
 
     // Cache line 2
-    alignas(64) atomic_handle_t  _tail       {}; // NOTE: Индекс хвоста с защитой от false sharing
+    alignas(64) atomic_index_t  _tail       {}; // NOTE: Индекс хвоста с защитой от false sharing
 
 public:
 
@@ -94,15 +95,15 @@ public:
 
     batch_t pop_batch() noexcept {
         handle current_head = _head.load(std::memory_order_relaxed);
-        handle current_tail = _tail.load(std::memory_order_relaxed);
+        index_t current_tail = _tail.load(std::memory_order_relaxed);
 
         // NOTE: Проверяем, что буфер не пуст
-        if (current_head.index >= current_tail.index)
+        if (current_head.index >= current_tail)
             return batch_t { nullptr, nullptr, this };
 
         _head.store(current_tail, std::memory_order_relaxed);
 
-        return batch_t { &_buffer[current_head.index % _capacity], &_buffer[current_tail.index % _capacity], this };
+        return batch_t { &_buffer[current_head.index % _capacity], &_buffer[current_tail % _capacity], this };
     }
 
 
@@ -147,11 +148,11 @@ clear() noexcept {
 
 BOUNDED_MPSC_QUEUE_MEMBER(bool)
 push(details::misc::fn_forward_t<dataT> data) noexcept {
-    handle current_tail = _tail.load(std::memory_order_relaxed);
-    handle next_tail;
-    index_t cache_head = current_tail.cache;
+    index_t current_tail = _tail.load(std::memory_order_relaxed);
+    index_t next_tail;
+    index_t cache_head = _head.load(std::memory_order_relaxed).index;
     do {
-        const index_t index_tail = current_tail.index;
+        const index_t index_tail = current_tail;
         // NOTE: Проверка, что буфер полон
         if (index_tail - cache_head >= _capacity) {
             cache_head = _head.load(std::memory_order_acquire).index;
@@ -159,12 +160,12 @@ push(details::misc::fn_forward_t<dataT> data) noexcept {
                 return false;
         }
 
-        next_tail = { .index = index_tail + 1, .cache = cache_head };
+        next_tail = index_tail + 1;
     } while (not _tail.compare_exchange_weak(current_tail, next_tail,
                                              std::memory_order_release,
                                              std::memory_order_relaxed));
     // NOTE: Сохраняем данные в буфер
-    _buffer[current_tail.index % _capacity]._data = std::forward<dataT>(data);
+    _buffer[current_tail % _capacity]._data = std::forward<dataT>(data);
     return true;
 }
 
@@ -172,12 +173,12 @@ push(details::misc::fn_forward_t<dataT> data) noexcept {
 BOUNDED_MPSC_QUEUE_MEMBER(bool)
 pop(dataT& data) noexcept {
     handle current_head = _head.load(std::memory_order_relaxed);
-    index_t cache_tail = current_head.cache;
+    index_t& cache_tail = current_head.cache;
 
     const index_t index_head = current_head.index;
     // NOTE: Проверяем, что буфер не пуст
     if (index_head >= cache_tail) {
-        cache_tail = _tail.load(std::memory_order_acquire).index;
+        cache_tail = _tail.load(std::memory_order_acquire);
         if (index_head >= cache_tail)
             return false;
     }
@@ -196,7 +197,7 @@ empty() noexcept {
 
     auto head = _head.load(std::memory_order_acquire);
     auto tail = _tail.load(std::memory_order_acquire);
-    if (tail.index == head.index)
+    if (tail == head)
         return true;
     return false;
 }
