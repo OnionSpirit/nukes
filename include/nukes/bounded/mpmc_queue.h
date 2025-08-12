@@ -22,8 +22,7 @@ class mpmc_queue {
     static_assert(not ( capacityV & (capacityV - 1) ), "capacityV must be a power of 2");
 
     typedef details::constants::hword index_t;
-    struct handle { index_t index{0}; index_t cache{0}; };
-    typedef std::atomic<handle> atomic_handle_t;
+    typedef std::atomic<index_t> atomic_handle_t;
     typedef details::misc::aligned_data<dataT, alignmentV> node_t;
 
     static constexpr std::size_t storage_size_v  {
@@ -93,12 +92,12 @@ public:
 
 
     batch_t pop_batch() noexcept {
-        handle current_head = _head.load(std::memory_order_relaxed);
-        handle current_tail = _tail.load(std::memory_order_relaxed);
-        handle next_head;
+        index_t current_head = _head.load(std::memory_order_relaxed);
+        const index_t current_tail = _tail.load(std::memory_order_relaxed);
+        index_t next_head;
         do {
             // NOTE: Проверяем, что буфер не пуст
-            if (current_head.index >= current_tail.index)
+            if (current_head >= current_tail)
                 return batch_t { nullptr, nullptr, this };
 
             next_head = current_tail;
@@ -106,7 +105,7 @@ public:
                                                  std::memory_order_release,
                                                  std::memory_order_relaxed));
 
-        return batch_t { &_buffer[current_head.index % _capacity], &_buffer[current_tail.index % _capacity], this };
+        return batch_t { &_buffer[current_head % _capacity], &_buffer[current_tail % _capacity], this };
     }
 
 
@@ -151,48 +150,40 @@ clear() noexcept {
 
 BOUNDED_MPMC_QUEUE_MEMBER(bool)
 push(details::misc::fn_forward_t<dataT> data) noexcept {
-    handle current_tail = _tail.load(std::memory_order_relaxed);
-    handle next_tail;
-    index_t cache_head = current_tail.cache;
+    index_t current_tail = _tail.load(std::memory_order_relaxed);
+    const index_t current_head = _head.load(std::memory_order_relaxed);
+    index_t next_tail;
     do {
-        const index_t index_tail = current_tail.index;
         // NOTE: Проверка, что буфер полон
-        if (index_tail - cache_head >= _capacity) {
-            cache_head = _head.load(std::memory_order_acquire).index;
-            if (index_tail - cache_head >= _capacity)
-                return false;
-        }
+        if (current_tail - current_head >= _capacity)
+            return false;
 
-        next_tail = { .index = index_tail + 1, .cache = cache_head };
+        next_tail = current_tail + 1;
     } while (not _tail.compare_exchange_weak(current_tail, next_tail,
                                              std::memory_order_release,
                                              std::memory_order_relaxed));
     // NOTE: Сохраняем данные в буфер
-    _buffer[current_tail.index % _capacity]._data = std::forward<dataT>(data);
+    _buffer[current_tail % _capacity]._data = std::forward<dataT>(data);
     return true;
 }
 
 
 BOUNDED_MPMC_QUEUE_MEMBER(bool)
 pop(dataT& data) noexcept {
-    handle current_head = _head.load(std::memory_order_relaxed);
-    handle next_head;
-    index_t cache_tail = current_head.cache;
+    index_t current_head = _head.load(std::memory_order_relaxed);
+    const index_t current_tail = _tail.load(std::memory_order_relaxed);
+    index_t next_head;
     do {
-        const index_t index_head = current_head.index;
         // NOTE: Проверяем, что буфер не пуст
-        if (index_head >= cache_tail) {
-            cache_tail = _tail.load(std::memory_order_acquire).index;
-            if (index_head >= cache_tail)
-                return false;
-        }
+        if (current_head >= current_tail)
+            return false;
 
-        next_head = { .index = index_head + 1, .cache = cache_tail };
+        next_head = current_head + 1;
     } while (not _head.compare_exchange_weak(current_head, next_head,
                                              std::memory_order_release,
                                              std::memory_order_relaxed));
     // NOTE: Читаем данные из буфера
-    data = std::forward<dataT>(_buffer[current_head.index % _capacity]._data);
+    data = std::forward<dataT>(_buffer[current_head % _capacity]._data);
     return true;
 }
 
