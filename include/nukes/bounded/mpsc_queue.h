@@ -1,5 +1,5 @@
-#ifndef NUKES_BOUNDED_MPMC_QUEUE
-#define NUKES_BOUNDED_MPMC_QUEUE
+#ifndef NUKES_BOUNDED_MPSC_QUEUE
+#define NUKES_BOUNDED_MPSC_QUEUE
 
 #include <atomic>
 #include <tuple>
@@ -16,7 +16,7 @@ template <
     details::constants::hword capacityV = details::constants::runtime_discover,
     details::constants::hword alignmentV = 8
 >
-class mpmc_queue {
+class mpsc_queue {
 
     // NOTE: Важно, т.к. работаем с абсолютными значениями
     static_assert(not ( capacityV & (capacityV - 1) ), "capacityV must be a power of 2");
@@ -33,27 +33,27 @@ class mpmc_queue {
     };
     typedef details::misc::meta_data<storage_size_v> storage_t;
 
-    class bou_mpmc_iter {
+    class bou_mpsc_iter {
 
-        mpmc_queue* _queue { nullptr };
+        mpsc_queue* _queue { nullptr };
 
     public:
-        explicit bou_mpmc_iter(mpmc_queue* queue)
+        explicit bou_mpsc_iter(mpsc_queue* queue)
             : _queue(queue) {}
 
-        bou_mpmc_iter& postfix_increment(node_t*& ptr) {
+        bou_mpsc_iter& postfix_increment(node_t*& ptr) {
             ptr += 1;
             return *this;
         }
 
-        bou_mpmc_iter prefix_increment(node_t*& ptr)  {
-            bou_mpmc_iter tmp = *this;
+        bou_mpsc_iter prefix_increment(node_t*& ptr)  {
+            bou_mpsc_iter tmp = *this;
             ptr += 1;
             return tmp;
         }
     };
 
-    typedef details::batch<node_t, bou_mpmc_iter, mpmc_queue*> batch_t;
+    typedef details::batch<node_t, bou_mpsc_iter, mpsc_queue*> batch_t;
 
     node_t*                          _buffer   { nullptr };  // NOTE: Буфер хранения памяти
     const details::constants::word   _capacity { capacityV };
@@ -67,13 +67,13 @@ class mpmc_queue {
 
 public:
 
-    mpmc_queue() noexcept
+    mpsc_queue() noexcept
         requires ( capacityV != details::constants::runtime_discover );
 
-    explicit mpmc_queue(details::constants::word = 1024) noexcept
+    explicit mpsc_queue(details::constants::word = 1024) noexcept
         requires ( capacityV == details::constants::runtime_discover );
 
-    ~mpmc_queue() noexcept =default;
+    ~mpsc_queue() noexcept =default;
 
     // NOTE: Запись в хвост
     [[nodiscard]] bool push(details::misc::fn_forward_t<dataT> data) noexcept;
@@ -95,16 +95,12 @@ public:
     batch_t pop_batch() noexcept {
         handle current_head = _head.load(std::memory_order_relaxed);
         handle current_tail = _tail.load(std::memory_order_relaxed);
-        handle next_head;
-        do {
-            // NOTE: Проверяем, что буфер не пуст
-            if (current_head.index >= current_tail.index)
-                return batch_t { nullptr, nullptr, this };
 
-            next_head = current_tail;
-        } while (not _head.compare_exchange_weak(current_head, next_head,
-                                                 std::memory_order_release,
-                                                 std::memory_order_relaxed));
+        // NOTE: Проверяем, что буфер не пуст
+        if (current_head.index >= current_tail.index)
+            return batch_t { nullptr, nullptr, this };
+
+        _head.store(current_tail, std::memory_order_relaxed);
 
         return batch_t { &_buffer[current_head.index % _capacity], &_buffer[current_tail.index % _capacity], this };
     }
@@ -118,23 +114,23 @@ public:
 
 // ================================ DEFINITIONS ================================
 
-#define BOUNDED_MPMC_QUEUE_MEMBER(member_type)                             \
+#define BOUNDED_MPSC_QUEUE_MEMBER(member_type)                             \
     template <                                                             \
         typename dataT,                                                    \
         nukes::details::constants::hword capacityV,                        \
         nukes::details::constants::hword alignmentV>                       \
-    member_type nukes::bounded::mpmc_queue<dataT, capacityV, alignmentV>::
+    member_type nukes::bounded::mpsc_queue<dataT, capacityV, alignmentV>::
 
-BOUNDED_MPMC_QUEUE_MEMBER()
-mpmc_queue() noexcept
+BOUNDED_MPSC_QUEUE_MEMBER()
+mpsc_queue() noexcept
 requires ( capacityV != nukes::details::constants::runtime_discover ) {
     // NOTE: При статическом определении размера ссылаем указатель буфера на начало хранилища,
     //       их размер соответствует запрошенному через шаблонный параметр
     _buffer = new (&_storage.template release<node_t>()) node_t[_capacity];
 }
 
-BOUNDED_MPMC_QUEUE_MEMBER()
-mpmc_queue(nukes::details::constants::word capacity) noexcept
+BOUNDED_MPSC_QUEUE_MEMBER()
+mpsc_queue(nukes::details::constants::word capacity) noexcept
 requires(capacityV == nukes::details::constants::runtime_discover)
 : _capacity(capacity) {
     // NOTE: При динамическом определении размера, выделяем на куче нужный размер,
@@ -143,13 +139,13 @@ requires(capacityV == nukes::details::constants::runtime_discover)
     _buffer = _storage.template release<node_t*>();
 }
 
-BOUNDED_MPMC_QUEUE_MEMBER(void)
+BOUNDED_MPSC_QUEUE_MEMBER(void)
 clear() noexcept {
     for (int i = 0; i < _capacity; ++i)
         new (&_buffer[i]._data) dataT();
 }
 
-BOUNDED_MPMC_QUEUE_MEMBER(bool)
+BOUNDED_MPSC_QUEUE_MEMBER(bool)
 push(details::misc::fn_forward_t<dataT> data) noexcept {
     handle current_tail = _tail.load(std::memory_order_relaxed);
     handle next_tail;
@@ -173,38 +169,37 @@ push(details::misc::fn_forward_t<dataT> data) noexcept {
 }
 
 
-BOUNDED_MPMC_QUEUE_MEMBER(bool)
+BOUNDED_MPSC_QUEUE_MEMBER(bool)
 pop(dataT& data) noexcept {
     handle current_head = _head.load(std::memory_order_relaxed);
-    handle next_head;
     index_t cache_tail = current_head.cache;
-    do {
-        const index_t index_head = current_head.index;
-        // NOTE: Проверяем, что буфер не пуст
-        if (index_head >= cache_tail) {
-            cache_tail = _tail.load(std::memory_order_acquire).index;
-            if (index_head >= cache_tail)
-                return false;
-        }
 
-        next_head = { .index = index_head + 1, .cache = cache_tail };
-    } while (not _head.compare_exchange_weak(current_head, next_head,
-                                             std::memory_order_release,
-                                             std::memory_order_relaxed));
+    const index_t index_head = current_head.index;
+    // NOTE: Проверяем, что буфер не пуст
+    if (index_head >= cache_tail) {
+        cache_tail = _tail.load(std::memory_order_acquire).index;
+        if (index_head >= cache_tail)
+            return false;
+    }
+
+    handle new_head = { .index = index_head + 1, .cache = cache_tail };
+    _head.store(new_head, std::memory_order_release);
+
     // NOTE: Читаем данные из буфера
     data = std::forward<dataT>(_buffer[current_head.index % _capacity]._data);
     return true;
 }
 
 
-BOUNDED_MPMC_QUEUE_MEMBER(bool)
+BOUNDED_MPSC_QUEUE_MEMBER(bool)
 empty() noexcept {
 
     auto head = _head.load(std::memory_order_acquire);
-    if (_tail.compare_exchange_weak(head, head, std::memory_order_release, std::memory_order_relaxed))
+    auto tail = _tail.load(std::memory_order_acquire);
+    if (tail.index == head.index)
         return true;
     return false;
 }
 
-#undef BOUNDED_MPMC_QUEUE_MEMBER
-#endif // NUKES_BOUNDED_MPMC_QUEUE
+#undef BOUNDED_MPSC_QUEUE_MEMBER
+#endif // NUKES_BOUNDED_MPSC_QUEUE

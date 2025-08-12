@@ -18,7 +18,7 @@ namespace nukes::dynamic {
 
 
 /**
- * @details atomic mpsc queue base class
+ * @details atomic mpsc queue base class, can be used as dyn spsc queue because they have same realisation
  * @tparam dataT Type that assumed to be used in the queue
  */
 template <typename dataT>
@@ -105,16 +105,14 @@ public:
 
 
 DYNAMIC_MPSC_QUEUE_MEMBER(bool)
-recycle_dummy(node_t*& n) noexcept {
+recycle_dummy(node_t*& dummy) noexcept {
 
-    if (n == &_dummy) [[unlikely]] {
-        n->_next.store(node_t{}, std::memory_order_release);
-        node_t new_tail, current_tail = _tail.load(std::memory_order_acquire);
-        new_tail = n;
-        while (not _tail.compare_exchange_weak(current_tail, new_tail, std::memory_order_release,
+    if (dummy == &_dummy) [[unlikely]] {
+        dummy->_next.store(nullptr, std::memory_order_release);
+        node_t* current_tail = _tail.load(std::memory_order_acquire);
+        while (not _tail.compare_exchange_weak(current_tail, dummy, std::memory_order_release,
                                                std::memory_order_relaxed)) {}
-        reinterpret_cast<node_t*>(current_tail)
-            ->_next.store(new_tail,std::memory_order_release);
+        current_tail->_next.store(dummy,std::memory_order_release);
         return true;
     } else [[likely]] return false;
 }
@@ -124,17 +122,15 @@ DYNAMIC_MPSC_QUEUE_MEMBER(bool)
 push(details::misc::fn_forward_t<dataT> data) noexcept {
 
     node_t* new_node { nullptr };
-    const bool res = _mempool.capture(new_node);
-    if (not res) return false;
+    if (not _mempool.capture(new_node)) return false;
     new_node->_data = std::forward<dataT>(data);
     new_node->_next.store(node_t{}, std::memory_order_release);
 
-    node_t new_tail, current_tail = _tail.load(std::memory_order_acquire);
-    new_tail = new_node;
-    while (not _tail.compare_exchange_weak(current_tail, new_tail, std::memory_order_release,
+    node_t current_tail = _tail.load(std::memory_order_acquire);
+    while (not _tail.compare_exchange_weak(current_tail, new_node, std::memory_order_release,
                                            std::memory_order_relaxed)) {}
     reinterpret_cast<node_t*>(current_tail)
-        ->_next.store(new_tail,std::memory_order_release);
+        ->_next.store(new_node,std::memory_order_release);
 
     return true;
 }
@@ -142,6 +138,7 @@ push(details::misc::fn_forward_t<dataT> data) noexcept {
 
 DYNAMIC_MPSC_QUEUE_MEMBER(bool)
 pop(dataT& data) noexcept {
+
     do {
         const node_t* new_head = _head->_next.load();
         if (nullptr == new_head) [[unlikely]] return false;
@@ -158,14 +155,12 @@ pop(dataT& data) noexcept {
 DYNAMIC_MPSC_QUEUE_MEMBER(void)
 push_node(details::misc::fn_forward_t<node_t> node) noexcept {
 
-    node->_next.store(node_t{}, std::memory_order_release);
-
-    node_t new_tail, current_tail = _tail.load(std::memory_order_acquire);
-    new_tail = node;
-    while (not _tail.compare_exchange_weak(current_tail, new_tail, std::memory_order_release,
+    node->_next.store(nullptr, std::memory_order_release);
+    node_t current_tail = _tail.load(std::memory_order_acquire);
+    while (not _tail.compare_exchange_weak(current_tail, node, std::memory_order_release,
                                            std::memory_order_relaxed)) {}
     reinterpret_cast<node_t*>(current_tail)
-        ->_next.store(new_tail,std::memory_order_release);
+        ->_next.store(node,std::memory_order_release);
 }
 
 

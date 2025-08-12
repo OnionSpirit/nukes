@@ -54,27 +54,6 @@ namespace nukes::details {
         nodeT* _tail;
         std::tuple<iteratorArgs...> _args{};
 
-        //     iterator& operator++() {
-        //         nodeT* new_ptr = _ptr->next();
-        //         if (_dummy_ptr and new_ptr == _dummy_ptr) {
-        //             new_ptr = new_ptr->next();
-        //         }
-        //         _mempool->sync(_ptr);
-        //         _ptr = new_ptr;
-        //         return *this;
-        //     }
-
-        //     iterator operator++(int) {
-        //         iterator tmp = *this;
-        //         nodeT* new_ptr = _ptr->next();
-        //         if (_dummy_ptr and new_ptr == _dummy_ptr) {
-        //             new_ptr = new_ptr->next();
-        //         }
-        //         _mempool->sync(_ptr);
-        //         _ptr = new_ptr;
-        //         return tmp;
-        //     }
-
     public:
 
         explicit batch() =default;
