@@ -22,7 +22,7 @@ class mpmc_queue {
     static_assert(not ( capacityV & (capacityV - 1) ), "capacityV must be a power of 2");
 
     typedef details::constants::hword index_t;
-    typedef std::atomic<index_t> atomic_handle_t;
+    typedef std::atomic<index_t> atomic_index_t;
     typedef details::misc::aligned_data<dataT, alignmentV> node_t;
 
     static constexpr std::size_t storage_size_v  {
@@ -59,10 +59,10 @@ class mpmc_queue {
     alignas(8) storage_t             _storage  {};
 
     // Cache line 1
-    alignas(64) atomic_handle_t  _head       {}; // NOTE: Индекс головы с защитой от false sharing
+    alignas(64) atomic_index_t  _head       {}; // NOTE: Индекс головы с защитой от false sharing
 
     // Cache line 2
-    alignas(64) atomic_handle_t  _tail       {}; // NOTE: Индекс хвоста с защитой от false sharing
+    alignas(64) atomic_index_t  _tail       {}; // NOTE: Индекс хвоста с защитой от false sharing
 
 public:
 
