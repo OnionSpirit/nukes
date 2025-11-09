@@ -15,13 +15,15 @@ template <
     details::constants::hword capacityV = details::constants::runtime_discover,
     details::constants::hword alignmentV = 8
 >
-class spsc_queue {
+struct spsc_queue {
 
     // NOTE: Важно, т.к. работаем с абсолютными значениями
     static_assert(not ( capacityV & (capacityV - 1) ), "capacityV must be a power of 2");
 
     typedef details::misc::aligned_data<dataT, alignmentV> node_t;
     typedef details::constants::hword index_t;
+
+private:
 
     static constexpr details::constants::hword storage_size_v  {
         capacityV

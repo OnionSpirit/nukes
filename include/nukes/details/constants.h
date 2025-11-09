@@ -13,6 +13,9 @@ inline constexpr std::size_t ufl_memory_offset = 16; ///< Memory offset for unbo
     ///< freelist top ptr size and
     ///< next bucket node ptr size
 
+// TODO: Replace alignas(64) in future
+// inline constexpr std::size_t cache_line_size = std::hardware_destructive_interference_size;
+
 // NOTE: Размер машинного слова
 inline constexpr std::size_t word_size = sizeof(std::size_t);
 

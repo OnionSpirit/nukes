@@ -24,10 +24,10 @@ namespace nukes::dynamic {
 template <typename dataT>
 struct mpsc_queue {
 
-protected:
-
     typedef details::nodes::dyn_node<dataT> node_t;      ///< Node type declaration
     typedef atomic_freelist<node_t> mempool_t;   ///< Memory buffer type
+
+protected:
 
     node_t    _dummy {};    ///< Dummy node instance
 
@@ -41,7 +41,7 @@ protected:
      * @param node Node instance
      * @return @b True if node was dummy and recycled to queue tail, @b False otherwise
      */
-    [[nodiscard]] bool recycle_dummy(node_t*& node) noexcept;
+    [[nodiscard]] bool recycle_dummy(details::misc::forward_ref_t<node_t*> node) noexcept;
 
 public:
 
@@ -83,7 +83,7 @@ public:
      * @return @b True if node instance successfully pulled,
      * @b False when pulling failed
      */
-    [[nodiscard]] bool pop_node(node_t *&node) noexcept;
+    [[nodiscard]] bool pop_node(details::misc::forward_ref_t<node_t*> node) noexcept;
 
     /**
      * @details Weak operation, can show that empty queue is not empty,
@@ -105,14 +105,14 @@ public:
 
 
 DYNAMIC_MPSC_QUEUE_MEMBER(bool)
-recycle_dummy(node_t*& dummy) noexcept {
+recycle_dummy(details::misc::forward_ref_t<node_t*> node) noexcept {
 
-    if (dummy == &_dummy) [[unlikely]] {
-        dummy->_next.store(nullptr, std::memory_order_release);
+    if (node == &_dummy) [[unlikely]] {
+        node->_next.store(nullptr, std::memory_order_release);
         node_t* current_tail = _tail.load(std::memory_order_acquire);
-        while (not _tail.compare_exchange_weak(current_tail, dummy, std::memory_order_release,
+        while (not _tail.compare_exchange_weak(current_tail, node, std::memory_order_release,
                                                std::memory_order_relaxed)) {}
-        current_tail->_next.store(dummy,std::memory_order_release);
+        current_tail->_next.store(node,std::memory_order_release);
         return true;
     } else [[likely]] return false;
 }
@@ -171,12 +171,12 @@ release_node(details::misc::fn_forward_t<node_t> node) noexcept {
 
 
 DYNAMIC_MPSC_QUEUE_MEMBER(bool)
-pop_node(node_t*& n) noexcept {
+pop_node(details::misc::forward_ref_t<node_t*> n) noexcept {
 
     do {
-        const node_t* new_head = _head->_next.load();
+        const node_t* new_head = reinterpret_cast<node_t*>(_head->_next.load());
         if (nullptr == new_head) [[unlikely]] return false;
-        else [[likely]] n = _head;
+        else [[likely]] n = std::forward<node_t*>(_head);
     } while (recycle_dummy(_head));
 
     return true;
@@ -185,7 +185,7 @@ pop_node(node_t*& n) noexcept {
 DYNAMIC_MPSC_QUEUE_MEMBER(bool)
 empty() noexcept {
 
-    if (_head == _tail.load(std::memory_order_acquire)._node)
+    if (_head == _tail.load(std::memory_order_acquire))
         return true;
     else return false;
 }

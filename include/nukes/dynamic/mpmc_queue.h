@@ -23,10 +23,12 @@ namespace nukes::dynamic {
  * @tparam dataT Type that assumed to be used in the queue
  */
 template <typename dataT>
-class mpmc_queue {
+struct mpmc_queue {
 
     typedef details::nodes::dyn_node<dataT> node_t;     ///< Node type declaration
     typedef atomic_freelist<node_t> mempool_t;  ///< Memory buffer type
+
+private:
 
     class dyn_mpmc_iter {
 
@@ -36,7 +38,7 @@ class mpmc_queue {
         explicit dyn_mpmc_iter(mpmc_queue* queue)
             : _queue(queue) {}
 
-        dyn_mpmc_iter& postfix_increment(node_t*& ptr) {
+        dyn_mpmc_iter& postfix_increment(details::misc::forward_ref_t<node_t*> ptr) {
             node_t* new_ptr = ptr->next(), *next_next_ptr = new_ptr->next();
             if (_queue->recycle_dummy(new_ptr))
                 new_ptr = next_next_ptr;
@@ -45,7 +47,7 @@ class mpmc_queue {
             return *this;
         }
 
-        dyn_mpmc_iter prefix_increment(node_t*& ptr)  {
+        dyn_mpmc_iter prefix_increment(details::misc::forward_ref_t<node_t*> ptr)  {
             dyn_mpmc_iter tmp = *this;
             node_t* new_ptr = ptr->next(), *next_next_ptr = new_ptr->next();
             if (_queue->recycle_dummy(new_ptr))
@@ -69,7 +71,7 @@ class mpmc_queue {
      * @param dummy Node instance
      * @return @b True if node was dummy and recycled to queue tail, @b False otherwise
      */
-    [[nodiscard]] bool recycle_dummy(node_t*& dummy) noexcept;
+    [[nodiscard]] bool recycle_dummy(details::misc::forward_ref_t<node_t*> dummy) noexcept;
 
 public:
 
@@ -111,7 +113,7 @@ public:
      * @return @b True if node instance successfully pulled,
      * @b False when pulling failed
      */
-    bool pop_node(node_t *& node) noexcept;
+    bool pop_node(details::misc::forward_ref_t<node_t*> node) noexcept;
 
     /**
      * @details Извлекает всю очередь атомарно, в формате листа
@@ -149,7 +151,7 @@ public:
 
 
 DYNAMIC_MPMC_QUEUE_MEMBER(bool)
-recycle_dummy(node_t*& dummy) noexcept {
+recycle_dummy(details::misc::forward_ref_t<node_t*> dummy) noexcept {
 
     if (dummy == &_dummy) [[unlikely]] {
         dummy->_next.store(nullptr, std::memory_order_release);
@@ -231,7 +233,7 @@ release_node(details::misc::fn_forward_t<node_t> node) noexcept {
 
 
 DYNAMIC_MPMC_QUEUE_MEMBER(bool)
-pop_node(node_t*& node) noexcept {
+pop_node(details::misc::forward_ref_t<node_t*> node) noexcept {
 
     while (true) {
         node_t new_head;

@@ -16,7 +16,7 @@ template <
     details::constants::hword capacityV = details::constants::runtime_discover,
     details::constants::hword alignmentV = 8
 >
-class mpmc_queue {
+struct mpmc_queue {
 
     // NOTE: Важно, т.к. работаем с абсолютными значениями
     static_assert(not ( capacityV & (capacityV - 1) ), "capacityV must be a power of 2");
@@ -24,6 +24,8 @@ class mpmc_queue {
     typedef details::constants::hword index_t;
     typedef std::atomic<index_t> atomic_index_t;
     typedef details::misc::aligned_data<dataT, alignmentV> node_t;
+
+private:
 
     static constexpr std::size_t storage_size_v  {
         capacityV
@@ -40,12 +42,12 @@ class mpmc_queue {
         explicit bou_mpmc_iter(mpmc_queue* queue)
             : _queue(queue) {}
 
-        bou_mpmc_iter& postfix_increment(node_t*& ptr) {
+        bou_mpmc_iter& postfix_increment(details::misc::forward_ref_t<node_t*> ptr) {
             ptr += 1;
             return *this;
         }
 
-        bou_mpmc_iter prefix_increment(node_t*& ptr)  {
+        bou_mpmc_iter prefix_increment(details::misc::forward_ref_t<node_t*> ptr)  {
             bou_mpmc_iter tmp = *this;
             ptr += 1;
             return tmp;

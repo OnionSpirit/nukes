@@ -21,8 +21,8 @@ namespace nukes::details::misc {
 
         // NOTE: Проверка может ли объект типа копироваться или только переноситься
         static constexpr bool is_rvalue_type =
-                not std::is_copy_assignable_v<T>
-                and std::is_move_assignable_v<T>;
+                not (std::is_copy_assignable_v<std::decay_t<T>> or std::is_copy_constructible_v<std::decay_t<T>>)
+                and (std::is_move_assignable_v<std::decay_t<T>> or std::is_move_constructible_v<std::decay_t<T>>);
 
         // NOTE: Проверка является ли тип меньше чем размер машинного слова
         static constexpr bool is_short_type = sizeof(T) <= constants::word_size;
@@ -36,6 +36,24 @@ namespace nukes::details::misc {
 
     template<typename T>
     using fn_forward_t = fn_forward<T>::type;
+
+    // NOTE: Вспомогательный тип для определения наиболее дешевой по памяти сигнатуры функций
+    template<typename T>
+    class forward_ref {
+
+        // NOTE: Проверка может ли объект типа копироваться или только переноситься
+        static constexpr bool is_rvalue_type =
+                not (std::is_copy_assignable_v<std::decay_t<T>> or std::is_copy_constructible_v<std::decay_t<T>>)
+                and (std::is_move_assignable_v<std::decay_t<T>> or std::is_move_constructible_v<std::decay_t<T>>);
+
+    public:
+
+        typedef std::conditional_t<is_rvalue_type, T &&, T&> type;
+    };
+
+    template<typename T>
+    using forward_ref_t = forward_ref<T>::type;
+
 
     template <typename dataT, std::size_t alignmentV = 8>
     struct aligned_data {
