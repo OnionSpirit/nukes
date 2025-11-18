@@ -79,7 +79,7 @@ public:
     ~mpsc_queue() noexcept =default;
 
     // NOTE: Запись в хвост
-    [[nodiscard]] bool push(details::misc::fn_forward_t<dataT> data) noexcept;
+    [[nodiscard]] bool push(details::misc::argument_t<dataT> data) noexcept;
 
     // NOTE: Чтение из головы
     [[nodiscard]] bool pop(dataT& data) noexcept;
@@ -149,7 +149,7 @@ clear() noexcept {
 }
 
 BOUNDED_MPSC_QUEUE_MEMBER(bool)
-push(details::misc::fn_forward_t<dataT> data) noexcept {
+push(details::misc::argument_t<dataT> data) noexcept {
     index_t current_tail = _tail.load(std::memory_order_relaxed);
     index_t next_tail;
     index_t cache_head = _head.load(std::memory_order_relaxed).index;

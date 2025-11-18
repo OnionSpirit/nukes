@@ -42,12 +42,12 @@ private:
         explicit bou_mpmc_iter(mpmc_queue* queue)
             : _queue(queue) {}
 
-        bou_mpmc_iter& postfix_increment(details::misc::forward_ref_t<node_t*> ptr) {
+        bou_mpmc_iter& postfix_increment(details::misc::argument_ref_t<node_t*> ptr) {
             ptr += 1;
             return *this;
         }
 
-        bou_mpmc_iter prefix_increment(details::misc::forward_ref_t<node_t*> ptr)  {
+        bou_mpmc_iter prefix_increment(details::misc::argument_ref_t<node_t*> ptr)  {
             bou_mpmc_iter tmp = *this;
             ptr += 1;
             return tmp;
@@ -77,7 +77,7 @@ public:
     ~mpmc_queue() noexcept =default;
 
     // NOTE: Запись в хвост
-    [[nodiscard]] bool push(details::misc::fn_forward_t<dataT> data) noexcept;
+    [[nodiscard]] bool push(details::misc::argument_t<dataT> data) noexcept;
 
     // NOTE: Чтение из головы
     [[nodiscard]] bool pop(dataT& data) noexcept;
@@ -151,7 +151,7 @@ clear() noexcept {
 }
 
 BOUNDED_MPMC_QUEUE_MEMBER(bool)
-push(details::misc::fn_forward_t<dataT> data) noexcept {
+push(details::misc::argument_t<dataT> data) noexcept {
     index_t current_tail = _tail.load(std::memory_order_relaxed);
     const index_t current_head = _head.load(std::memory_order_relaxed);
     index_t next_tail;

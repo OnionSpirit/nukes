@@ -27,7 +27,7 @@ public:
 
     ~atomic_stack() noexcept =default;
 
-    [[nodiscard]] bool push(details::misc::fn_forward_t<dataT> data) noexcept;
+    [[nodiscard]] bool push(details::misc::argument_t<dataT> data) noexcept;
 
     [[nodiscard]] bool pop(dataT& data) noexcept;
 };
@@ -44,7 +44,7 @@ public:
 
 
 ATOMIC_STACK_MEMBER(bool)
-push(details::misc::fn_forward_t<dataT> data) noexcept {
+push(details::misc::argument_t<dataT> data) noexcept {
 
     node_t* new_node {nullptr};
     const bool res = _free_nodes.capture(new_node);

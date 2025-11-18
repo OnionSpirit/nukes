@@ -41,7 +41,7 @@ protected:
      * @param node Node instance
      * @return @b True if node was dummy and recycled to queue tail, @b False otherwise
      */
-    [[nodiscard]] bool recycle_dummy(details::misc::forward_ref_t<node_t*> node) noexcept;
+    [[nodiscard]] bool recycle_dummy(details::misc::argument_ref_t<node_t*> node) noexcept;
 
 public:
 
@@ -53,7 +53,7 @@ public:
      * @return @b True if element successfully pushed,
      * @b False when run out of capacity
      */
-    bool push(details::misc::fn_forward_t<dataT> data) noexcept;
+    bool push(dataT&& data) noexcept;
 
     /**
      * @details Atomically pops an element from the queue to the reference
@@ -68,13 +68,13 @@ public:
      * @details Atomically pushes node instance to the queue (Move Semantics)
      * @param node Node instance to be pushed
      */
-    void push_node(details::misc::fn_forward_t<node_t> node) noexcept;
+    void push_node(details::misc::argument_ref_t<node_t*> node) noexcept;
 
     /**
      * @details Atomically releases node to the queue mempool (Move Semantics)
      * @param node Releasing node
      */
-    void release_node(details::misc::fn_forward_t<node_t> node) noexcept;
+    void release_node(details::misc::argument_ref_t<node_t*> node) noexcept;
 
     /**
      * @details Atomically pops an node instance from the queue to
@@ -83,7 +83,7 @@ public:
      * @return @b True if node instance successfully pulled,
      * @b False when pulling failed
      */
-    [[nodiscard]] bool pop_node(details::misc::forward_ref_t<node_t*> node) noexcept;
+    [[nodiscard]] node_t* pop_node() noexcept;
 
     /**
      * @details Weak operation, can show that empty queue is not empty,
@@ -105,32 +105,31 @@ public:
 
 
 DYNAMIC_MPSC_QUEUE_MEMBER(bool)
-recycle_dummy(details::misc::forward_ref_t<node_t*> node) noexcept {
+recycle_dummy(details::misc::argument_ref_t<node_t*> dummy) noexcept {
 
-    if (node == &_dummy) [[unlikely]] {
-        node->_next.store(nullptr, std::memory_order_release);
+    if (dummy == &_dummy) [[unlikely]] {
+        dummy->_next.store(nullptr, std::memory_order_release);
         node_t* current_tail = _tail.load(std::memory_order_acquire);
-        while (not _tail.compare_exchange_weak(current_tail, node, std::memory_order_release,
+        while (not _tail.compare_exchange_weak(current_tail, dummy, std::memory_order_release,
                                                std::memory_order_relaxed)) {}
-        current_tail->_next.store(node,std::memory_order_release);
+        current_tail->_next.store(dummy,std::memory_order_release);
         return true;
     } else [[likely]] return false;
 }
 
 
 DYNAMIC_MPSC_QUEUE_MEMBER(bool)
-push(details::misc::fn_forward_t<dataT> data) noexcept {
+push(dataT&& data) noexcept {
 
     node_t* new_node { nullptr };
     if (not _mempool.capture(new_node)) return false;
     new_node->_data = std::forward<dataT>(data);
-    new_node->_next.store(node_t{}, std::memory_order_release);
+    new_node->_next.store(nullptr, std::memory_order_release);
 
-    node_t current_tail = _tail.load(std::memory_order_acquire);
+    node_t* current_tail = _tail.load(std::memory_order_acquire);
     while (not _tail.compare_exchange_weak(current_tail, new_node, std::memory_order_release,
                                            std::memory_order_relaxed)) {}
-    reinterpret_cast<node_t*>(current_tail)
-        ->_next.store(new_node,std::memory_order_release);
+    current_tail->_next.store(std::forward<node_t*>(new_node),std::memory_order_release);
 
     return true;
 }
@@ -153,33 +152,33 @@ pop(dataT& data) noexcept {
 
 
 DYNAMIC_MPSC_QUEUE_MEMBER(void)
-push_node(details::misc::fn_forward_t<node_t> node) noexcept {
+push_node(details::misc::argument_ref_t<node_t*> node) noexcept {
 
     node->_next.store(nullptr, std::memory_order_release);
-    node_t current_tail = _tail.load(std::memory_order_acquire);
+    node_t* current_tail = _tail.load(std::memory_order_acquire);
     while (not _tail.compare_exchange_weak(current_tail, node, std::memory_order_release,
                                            std::memory_order_relaxed)) {}
-    reinterpret_cast<node_t*>(current_tail)
-        ->_next.store(node,std::memory_order_release);
+    current_tail->_next.store(std::forward<node_t*>(node), std::memory_order_release);
 }
 
 
 DYNAMIC_MPSC_QUEUE_MEMBER(void)
-release_node(details::misc::fn_forward_t<node_t> node) noexcept {
-    return _mempool.sync(node);
+release_node(details::misc::argument_ref_t<node_t*> node) noexcept {
+    _mempool.sync(node);
 }
 
 
-DYNAMIC_MPSC_QUEUE_MEMBER(bool)
-pop_node(details::misc::forward_ref_t<node_t*> n) noexcept {
-
+DYNAMIC_MPSC_QUEUE_MEMBER(auto)
+pop_node() noexcept -> node_t* {
+    node_t *new_head, *poped_node;
     do {
-        const node_t* new_head = reinterpret_cast<node_t*>(_head->_next.load());
-        if (nullptr == new_head) [[unlikely]] return false;
-        else [[likely]] n = std::forward<node_t*>(_head);
-    } while (recycle_dummy(_head));
+        new_head = reinterpret_cast<node_t*>(_head->_next.load());
+        if (nullptr == new_head) [[unlikely]] return nullptr;
+        poped_node = std::forward<node_t*>(_head);
+        _head = std::forward<node_t*>(new_head);
+    } while (recycle_dummy(poped_node));
 
-    return true;
+    return std::forward<node_t*>(poped_node);
 }
 
 DYNAMIC_MPSC_QUEUE_MEMBER(bool)

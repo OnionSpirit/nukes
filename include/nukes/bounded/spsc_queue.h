@@ -73,7 +73,7 @@ public:
      * @return @b True if element successfully pushed,
      * @b False when run out of capacity
      */
-    [[nodiscard]] bool push(details::misc::fn_forward_t<dataT> data);
+    [[nodiscard]] bool push(details::misc::argument_t<dataT> data);
 };
 
 } // end namespace nukes::bounded
@@ -129,7 +129,7 @@ pop(dataT& data) {
 }
 
 BOUNDED_SPSC_QUEUE_MEMBER(bool)
-push(nukes::details::misc::fn_forward_t<dataT> data) {
+push(nukes::details::misc::argument_t<dataT> data) {
     const index_t tail = _tail.load(std::memory_order_relaxed);
 
     // NOTE: Если хвост догнал кеш головы

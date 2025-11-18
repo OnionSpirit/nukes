@@ -60,7 +60,7 @@ public:
         static inline void thr_mpmc_container_walker(containerT& container) {
 
         typedef int data_t;
-        typedef nukes::details::misc::fn_forward_t<data_t> data_forward_t;
+        typedef nukes::details::misc::argument_t<data_t> data_forward_t;
 
         static constexpr bool is_contailner = requires(containerT cont, data_forward_t fwd, data_t& pll) {
             { cont.push(fwd) } -> std::same_as<bool>;
@@ -91,7 +91,7 @@ public:
         static inline void thr_spsc_container_walker(containerT& container) {
 
         typedef int data_t;
-        typedef nukes::details::misc::fn_forward_t<data_t> data_forward_t;
+        typedef nukes::details::misc::argument_t<data_t> data_forward_t;
 
         static constexpr bool is_contailner = requires(containerT cont, data_forward_t fwd, data_t& pll) {
             { cont.push(fwd) } -> std::same_as<bool>;
@@ -106,7 +106,7 @@ public:
     static inline void thr_mpsc_container_walker(containerT& container) {
 
         typedef int data_t;
-        typedef nukes::details::misc::fn_forward_t<data_t> data_forward_t;
+        typedef nukes::details::misc::argument_t<data_t> data_forward_t;
 
         static constexpr bool is_contailner = requires(containerT cont, data_forward_t fwd, data_t& pll) {
             { cont.push(fwd) } -> std::same_as<bool>;

@@ -17,7 +17,7 @@ namespace nukes::details::misc {
 
     // NOTE: Вспомогательный тип для определения наиболее дешевой по памяти сигнатуры функций
     template<typename T>
-    class fn_forward {
+    class argument {
 
         // NOTE: Проверка может ли объект типа копироваться или только переноситься
         static constexpr bool is_rvalue_type =
@@ -35,11 +35,11 @@ namespace nukes::details::misc {
     };
 
     template<typename T>
-    using fn_forward_t = fn_forward<T>::type;
+    using argument_t = argument<T>::type;
 
     // NOTE: Вспомогательный тип для определения наиболее дешевой по памяти сигнатуры функций
     template<typename T>
-    class forward_ref {
+    class argument_ref {
 
         // NOTE: Проверка может ли объект типа копироваться или только переноситься
         static constexpr bool is_rvalue_type =
@@ -52,7 +52,7 @@ namespace nukes::details::misc {
     };
 
     template<typename T>
-    using forward_ref_t = forward_ref<T>::type;
+    using argument_ref_t = argument_ref<T>::type;
 
 
     template <typename dataT, std::size_t alignmentV = 8>
