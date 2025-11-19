@@ -113,8 +113,8 @@ recycle_dummy(node_t*& dummy) noexcept {
 
 DYNAMIC_ATOMIC_FREELIST_MEMBER(bool)
 sync(dataT*& data) noexcept {
-
-    auto* new_tail = reinterpret_cast<node_t *>(reinterpret_cast<uint8_t *>(data) - offsetof(node_t, _data));
+    auto* new_tail = reinterpret_cast<node_t *>(reinterpret_cast<uint8_t *>(data) -
+        [] { node_t t{}; return reinterpret_cast<ulong>(&t._data) - reinterpret_cast<ulong>(&t); }());
     new_tail->_next.store(nullptr, std::memory_order_relaxed);
 
     node_t *current_tail = _tail.load(std::memory_order_relaxed);
