@@ -124,12 +124,8 @@ push(dataT&& data) noexcept {
     node_t* new_node { nullptr };
     if (not _mempool.capture(new_node)) return false;
     new_node->_data = std::forward<dataT>(data);
-    new_node->_next.store(nullptr, std::memory_order_release);
 
-    node_t* current_tail = _tail.load(std::memory_order_acquire);
-    while (not _tail.compare_exchange_weak(current_tail, new_node, std::memory_order_release,
-                                           std::memory_order_relaxed)) {}
-    current_tail->_next.store(std::forward<node_t*>(new_node),std::memory_order_release);
+    push_node(new_node);
 
     return true;
 }
@@ -138,15 +134,10 @@ push(dataT&& data) noexcept {
 DYNAMIC_MPSC_QUEUE_MEMBER(bool)
 pop(dataT& data) noexcept {
 
-    do {
-        auto* new_head = reinterpret_cast<node_t*>(_head->_next.load());
-        if (nullptr == new_head) [[unlikely]] return false;
-        else [[likely]] {
-            data = std::forward<dataT>(_head->_data);
-            _head = std::forward<node_t*>(new_head);
-        }
-    } while (recycle_dummy(_head));
+    auto* released_node = pop_node();
+    if (not released_node) [[unlikely]] return false;
 
+    data = std::forward<dataT>(released_node->_data);
     return _mempool.sync(_head);
 }
 
