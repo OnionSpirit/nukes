@@ -139,11 +139,11 @@ DYNAMIC_MPSC_QUEUE_MEMBER(bool)
 pop(dataT& data) noexcept {
 
     do {
-        const node_t* new_head = _head->_next.load();
+        auto* new_head = reinterpret_cast<node_t*>(_head->_next.load());
         if (nullptr == new_head) [[unlikely]] return false;
         else [[likely]] {
             data = std::forward<dataT>(_head->_data);
-            _head = new_head;
+            _head = std::forward<node_t*>(new_head);
         }
     } while (recycle_dummy(_head));
 
@@ -170,15 +170,15 @@ release_node(details::misc::argument_ref_t<node_t*> node) noexcept {
 
 DYNAMIC_MPSC_QUEUE_MEMBER(auto)
 pop_node() noexcept -> node_t* {
-    node_t *new_head, *poped_node;
+    node_t* released_node;
     do {
-        new_head = reinterpret_cast<node_t*>(_head->_next.load());
+        auto* new_head = reinterpret_cast<node_t *>(_head->_next.load());
         if (nullptr == new_head) [[unlikely]] return nullptr;
-        poped_node = std::forward<node_t*>(_head);
+        released_node = std::forward<node_t*>(_head);
         _head = std::forward<node_t*>(new_head);
-    } while (recycle_dummy(poped_node));
+    } while (recycle_dummy(released_node));
 
-    return std::forward<node_t*>(poped_node);
+    return std::forward<node_t*>(released_node);
 }
 
 DYNAMIC_MPSC_QUEUE_MEMBER(bool)

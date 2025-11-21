@@ -44,12 +44,12 @@ private:
         explicit bou_mpsc_iter(mpsc_queue* queue)
             : _queue(queue) {}
 
-        bou_mpsc_iter& postfix_increment(details::misc::forward_ref_t<node_t*> ptr) {
+        bou_mpsc_iter& postfix_increment(details::misc::argument_ref_t<node_t*> ptr) {
             ptr += 1;
             return *this;
         }
 
-        bou_mpsc_iter prefix_increment(details::misc::forward_ref_t<node_t*> ptr)  {
+        bou_mpsc_iter prefix_increment(details::misc::argument_ref_t<node_t*> ptr)  {
             bou_mpsc_iter tmp = *this;
             ptr += 1;
             return tmp;
