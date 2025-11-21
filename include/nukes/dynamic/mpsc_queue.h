@@ -105,20 +105,6 @@ public:
 
 
 DYNAMIC_MPSC_QUEUE_MEMBER(bool)
-recycle_dummy(details::misc::argument_ref_t<node_t*> dummy) noexcept {
-
-    if (dummy == &_dummy) [[unlikely]] {
-        dummy->_next.store(nullptr, std::memory_order_release);
-        node_t* current_tail = _tail.load(std::memory_order_acquire);
-        while (not _tail.compare_exchange_weak(current_tail, dummy, std::memory_order_release,
-                                               std::memory_order_relaxed)) {}
-        current_tail->_next.store(dummy,std::memory_order_release);
-        return true;
-    } else [[likely]] return false;
-}
-
-
-DYNAMIC_MPSC_QUEUE_MEMBER(bool)
 push(dataT&& data) noexcept {
 
     node_t* new_node { nullptr };
@@ -138,7 +124,27 @@ pop(dataT& data) noexcept {
     if (not released_node) [[unlikely]] return false;
 
     data = std::forward<dataT>(released_node->_data);
-    return _mempool.sync(_head);
+    return _mempool.sync(released_node);
+}
+
+
+DYNAMIC_MPSC_QUEUE_MEMBER(void)
+release_node(details::misc::argument_ref_t<node_t*> node) noexcept {
+    _mempool.sync(node);
+}
+
+
+DYNAMIC_MPSC_QUEUE_MEMBER(bool)
+recycle_dummy(details::misc::argument_ref_t<node_t*> dummy) noexcept {
+
+    if (dummy == &_dummy) [[unlikely]] {
+        dummy->_next.store(nullptr, std::memory_order_release);
+        node_t* current_tail = _tail.load(std::memory_order_acquire);
+        while (not _tail.compare_exchange_weak(current_tail, dummy, std::memory_order_release,
+                                               std::memory_order_relaxed)) {}
+        current_tail->_next.store(dummy,std::memory_order_release);
+        return true;
+    } else [[likely]] return false;
 }
 
 
@@ -150,12 +156,6 @@ push_node(details::misc::argument_ref_t<node_t*> node) noexcept {
     while (not _tail.compare_exchange_weak(current_tail, node, std::memory_order_release,
                                            std::memory_order_relaxed)) {}
     current_tail->_next.store(std::forward<node_t*>(node), std::memory_order_release);
-}
-
-
-DYNAMIC_MPSC_QUEUE_MEMBER(void)
-release_node(details::misc::argument_ref_t<node_t*> node) noexcept {
-    _mempool.sync(node);
 }
 
 
