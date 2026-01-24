@@ -83,15 +83,17 @@ TEST_F(atomics, do_check_dynamic_mpmc_consistancy) {
     typedef nukes::dynamic::mpmc_queue<int> container_t;
     container_t container{};
 
-    for (int cpu_num = 0, i =0; i < thread_count; ++cpu_num, ++i) {
-        auto thread_handle = threads
-            .emplace_back(thr_mpmc_container_walker<container_t>, std::ref(container))
-            .native_handle();
-        cpu_set_t cpuset;
-        CPU_ZERO(&cpuset);
-        CPU_SET(cpu_num % thread_count, &cpuset);
-        pthread_setaffinity_np(thread_handle, sizeof(cpu_set_t), &cpuset);
-    }
+    // for (int cpu_num = 0, i =0; i < thread_count; ++cpu_num, ++i) {
+    //     auto thread_handle = threads
+    //         .emplace_back(thr_mpmc_container_walker<container_t>, std::ref(container))
+    //         .native_handle();
+    //     cpu_set_t cpuset;
+    //     CPU_ZERO(&cpuset);
+    //     CPU_SET(cpu_num % thread_count, &cpuset);
+    //     pthread_setaffinity_np(thread_handle, sizeof(cpu_set_t), &cpuset);
+    // }
+    for (int i =0; i < thread_count; ++i)
+        threads.emplace_back(thr_mpsc_container_walker<container_t>, std::ref(container));
 
     for (auto& e : threads)
         e.join();
