@@ -12,6 +12,7 @@
 #include "nukes/details/node_types.h"
 #include "nukes/details/misc.h"
 #include "atomic_freelist.h"
+#include "nukes/details/batch.h"
 
 
 namespace nukes::dynamic {
@@ -26,6 +27,38 @@ struct mpsc_queue {
 
     typedef details::nodes::dyn_node<dataT> node_t;      ///< Node type declaration
     typedef atomic_freelist<node_t> mempool_t;   ///< Memory buffer type
+
+private:
+
+    class dyn_mpsc_iter {
+
+        mpsc_queue* _queue { nullptr };
+
+    public:
+        explicit dyn_mpsc_iter(mpsc_queue* queue)
+            : _queue(queue) {}
+
+        dyn_mpsc_iter& postfix_increment(details::misc::argument_ref_t<node_t*> ptr) {
+            node_t* new_ptr = ptr->next(), *next_next_ptr = new_ptr->next();
+            if (_queue->recycle_dummy(new_ptr))
+                new_ptr = next_next_ptr;
+            _queue->_mempool.sync(ptr);
+            ptr = new_ptr;
+            return *this;
+        }
+
+        dyn_mpsc_iter prefix_increment(details::misc::argument_ref_t<node_t*> ptr)  {
+            dyn_mpsc_iter tmp = *this;
+            node_t* new_ptr = ptr->next(), *next_next_ptr = new_ptr->next();
+            if (_queue->recycle_dummy(new_ptr))
+                new_ptr = next_next_ptr;
+            _queue->_mempool.sync(ptr);
+            ptr = new_ptr;
+            return tmp;
+        }
+    };
+
+    typedef details::batch<node_t, dyn_mpsc_iter, mpsc_queue*> batch_t;
 
 protected:
 
@@ -84,6 +117,28 @@ public:
      * @b False when pulling failed
      */
     [[nodiscard]] node_t* pop_node() noexcept;
+
+    /**
+     * @details Извлекает всю очередь атомарно, в формате листа
+     * @return Объект @b batch содержащий только операции получения итератора,
+     * для прохода по списку
+     */
+    batch_t pop_batch() noexcept {
+        node_t *current_head = _head;
+        node_t *current_tail = _tail.load(std::memory_order_relaxed);
+        _head = current_tail;
+        return batch_t { current_head, current_tail, this };
+        // TODO: Weird stuff
+        // node_t *current_head = _head;
+        // node_t *current_tail = _tail.load(std::memory_order_relaxed);
+        // do {
+        //     if (not current_head or not current_tail) [[unlikely]] return batch_t{};
+        // } while (not _tail.compare_exchange_weak(current_tail, current_head,
+        //                                          std::memory_order_release,
+        //                                          std::memory_order_relaxed));
+        //     _head = current_tail;
+        // return batch_t { current_head, current_tail, this };
+    }
 
     /**
      * @details Weak operation, can show that empty queue is not empty,
