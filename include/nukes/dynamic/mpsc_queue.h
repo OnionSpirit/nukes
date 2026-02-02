@@ -146,6 +146,15 @@ public:
      * @return @b True when queue is empty (guaranteed), @b False when queue might have elements
      */
     [[nodiscard]] bool empty() noexcept;
+
+    mpsc_queue operator=(mpsc_queue&) = delete;
+
+    mpsc_queue& operator=(mpsc_queue&& q)  noexcept {
+        this->_head = q._head;
+        this->_tail = q._tail.load(std::memory_order_relaxed);
+        this->_mempool = std::forward<mempool_t>(q._mempool);
+        return *this;
+    }
 };
 
 } // end namespace nukes::dynamic

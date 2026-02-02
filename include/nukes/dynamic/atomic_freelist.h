@@ -69,6 +69,14 @@ public:
      * @return @b True when freelist is empty (guaranteed), @b False when freelist might have elements
      */
     [[nodiscard]] bool empty() noexcept;
+
+    atomic_freelist operator=(atomic_freelist&) = delete;
+
+    atomic_freelist& operator=(atomic_freelist&& q)  noexcept {
+        this->_head = q._head.load(std::memory_order_relaxed);
+        this->_tail = q._tail.load(std::memory_order_relaxed);
+        return *this;
+    }
 };
 
 } // end namespace nukes::memory
