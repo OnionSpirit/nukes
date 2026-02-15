@@ -97,7 +97,7 @@ DYNAMIC_ATOMIC_FREELIST_MEMBER()
         if (reinterpret_cast<ulong>(temp) == reinterpret_cast<ulong>(&_dummy))
             continue;
 
-        delete temp;
+        free(temp);
         if (_tail.load() == temp) {
             _head.store(nullptr);
             _tail.store(nullptr);
@@ -121,6 +121,7 @@ recycle_dummy(node_t*& dummy) noexcept {
 
 DYNAMIC_ATOMIC_FREELIST_MEMBER(bool)
 sync(dataT*& data) noexcept {
+    data->~dataT();
     auto* new_tail = reinterpret_cast<node_t *>(reinterpret_cast<uint8_t *>(data) -
         [] { node_t t{}; return reinterpret_cast<ulong>(&t._data) - reinterpret_cast<ulong>(&t); }());
     new_tail->_next.store(nullptr, std::memory_order_relaxed);
