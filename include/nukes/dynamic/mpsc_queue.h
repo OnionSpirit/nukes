@@ -216,9 +216,7 @@ DYNAMIC_MPSC_QUEUE_MEMBER(void)
 push_node(details::misc::argument_ref_t<node_t*> node) noexcept {
 
     node->_next.store(nullptr, std::memory_order_release);
-    node_t* current_tail = _tail.load(std::memory_order_acquire);
-    while (not _tail.compare_exchange_weak(current_tail, node, std::memory_order_release,
-                                           std::memory_order_relaxed)) {}
+    node_t* current_tail = _tail.exchange(node, std::memory_order_release);
     current_tail->_next.store(std::forward<node_t*>(node), std::memory_order_release);
 }
 

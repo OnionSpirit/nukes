@@ -176,16 +176,11 @@ recycle_dummy(details::misc::argument_ref_t<node_t*> dummy) noexcept {
 DYNAMIC_MPMC_QUEUE_MEMBER(bool)
 push(details::misc::argument_t<dataT> data) noexcept {
 
-    node_t* new_tail { nullptr };
-    if (not _mempool.capture(new_tail)) return false;
-    new_tail->_data = std::forward<dataT>(data);
-    new_tail->_next.store(nullptr, std::memory_order_release);
+    node_t* new_node { nullptr };
+    if (not _mempool.capture(new_node)) return false;
+    new_node->_data = std::forward<dataT>(data);
 
-    node_t *current_tail = _tail.load(std::memory_order_acquire);
-    while (not _tail.compare_exchange_weak(current_tail, new_tail
-                                           , std::memory_order_release
-                                           , std::memory_order_relaxed)) {}
-    current_tail->_next.store(new_tail,std::memory_order_release);
+    push_node(new_node);
 
     return true;
 }
@@ -194,30 +189,11 @@ push(details::misc::argument_t<dataT> data) noexcept {
 DYNAMIC_MPMC_QUEUE_MEMBER(bool)
 pop(dataT& data) noexcept {
 
-    while (true) {
-        node_t *new_head, *current_head = _head.load(std::memory_order_acquire);
+    auto* released_node = pop_node();
+    if (not released_node) [[unlikely]] return false;
 
-        do {
-            // NOTE: Делаем через goto, потому что continue станет проверять условие продолжения через CAS,
-            // NOTE: а нам такого не надо, т.к. попортит кеш-линию CAS-перезаписью
-            cxhg_loop:
-            if (not current_head) [[unlikely]] return false;
-            new_head = reinterpret_cast<node_t *>(current_head->_next.load());
-            if (not new_head) [[unlikely]] return false;
-            if (_head.load(std::memory_order_relaxed) not_eq current_head) [[unlikely]] {
-                current_head = _head.load(std::memory_order_relaxed);
-                goto cxhg_loop;
-            }
-        } while (not _head.compare_exchange_weak(current_head, new_head,
-                                                 std::memory_order_release,
-                                                 std::memory_order_relaxed));
-
-        auto* pop_node = std::forward<node_t*>(current_head);
-        if (not recycle_dummy(pop_node)) [[likely]] {
-            data = std::forward<dataT>(pop_node->_data);
-            return _mempool.sync(pop_node);
-        }
-    }
+    data = std::forward<dataT>(released_node->_data);
+    return _mempool.sync(released_node);
 }
 
 
@@ -225,9 +201,7 @@ DYNAMIC_MPMC_QUEUE_MEMBER(void)
 push_node(details::misc::argument_ref_t<node_t*> node) noexcept {
 
     node->_next.store(nullptr, std::memory_order_release);
-    node_t* current_tail = _tail.load(std::memory_order_acquire);
-    while (not _tail.compare_exchange_weak(current_tail, node, std::memory_order_release,
-                                           std::memory_order_relaxed)) {}
+    node_t* current_tail = _tail.exchange(node, std::memory_order_release);
     current_tail->_next.store(std::forward<node_t*>(node), std::memory_order_release);
 }
 
@@ -243,9 +217,15 @@ pop_node() noexcept -> node_t* {
     node_t *new_head, *current_head;
     do {
         current_head = _head.load(std::memory_order_acquire);
-        do {if (not current_head) [[unlikely]] return nullptr;
+        do {
+            cxhg_loop:
+            if (not current_head) [[unlikely]] return nullptr;
             new_head = reinterpret_cast<node_t*>(current_head->_next.load());
             if (not new_head) [[unlikely]] return nullptr;
+            if (_head.load(std::memory_order_relaxed) not_eq current_head) [[unlikely]] {
+                current_head = _head.load(std::memory_order_relaxed);
+                goto cxhg_loop;
+            }
         } while (not _head.compare_exchange_weak(current_head, new_head,
                                                  std::memory_order_release,
                                                  std::memory_order_relaxed));

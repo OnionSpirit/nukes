@@ -126,10 +126,7 @@ sync(dataT*& data) noexcept {
         [] { node_t t{}; return reinterpret_cast<ulong>(&t._data) - reinterpret_cast<ulong>(&t); }());
     new_tail->_next.store(nullptr, std::memory_order_relaxed);
 
-    node_t *current_tail = _tail.load(std::memory_order_relaxed);
-    while (not _tail.compare_exchange_weak(current_tail, new_tail
-                                           , std::memory_order_release
-                                           , std::memory_order_relaxed)) {}
+    node_t *current_tail = _tail.exchange(new_tail, std::memory_order_release);
     current_tail->_next.store(new_tail,std::memory_order_release);
 
     data = nullptr;
