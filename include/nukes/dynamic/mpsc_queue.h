@@ -62,11 +62,12 @@ private:
 
 protected:
 
-    alignas(64) node_t*              _head { &_dummy };  ///< Head pointer
-    alignas(64) std::atomic<node_t*> _tail { &_dummy };  ///< Tail pointer
+    alignas(64) node_t               _dummy     { };  ///< Dummy node instance
+    node_t* const                    _dummy_ptr { &_dummy };
+    alignas(64) node_t*              _head      { _dummy_ptr };  ///< Head pointer
+    alignas(64) std::atomic<node_t*> _tail      { _dummy_ptr };  ///< Tail pointer
 
-    alignas(64) node_t _dummy   {};  ///< Dummy node instance
-    mempool_t          _mempool {};  ///< Memory buffer to allocate nodes from
+    mempool_t          _mempool   {};  ///< Memory buffer to allocate nodes from
 
     /**
      * @details Recycles node, if it's dummy, to the end of the queue
@@ -200,7 +201,7 @@ release_node(details::misc::argument_ref_t<node_t*> node) noexcept {
 DYNAMIC_MPSC_QUEUE_MEMBER(bool)
 recycle_dummy(details::misc::argument_ref_t<node_t*> dummy) noexcept {
 
-    if (dummy == &_dummy) [[unlikely]] {
+    if (dummy == _dummy_ptr) [[unlikely]] {
         dummy->_next.store(nullptr, std::memory_order_release);
         node_t *current_tail = _tail.exchange(dummy, std::memory_order_release);
         current_tail->_next.store(dummy,std::memory_order_release);

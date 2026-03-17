@@ -60,11 +60,12 @@ private:
 
     typedef details::batch<node_t, dyn_mpmc_iter, mpmc_queue*> batch_t;
 
-    alignas(64) std::atomic<node_t*> _head { &_dummy }; ///< Head pointer
-    alignas(64) std::atomic<node_t*> _tail { &_dummy }; ///< Tail pointer
+    alignas(64) node_t               _dummy     { };  ///< Dummy node instance
+    node_t* const                    _dummy_ptr { &_dummy };
+    alignas(64) std::atomic<node_t*> _head      { _dummy_ptr }; ///< Head pointer
+    alignas(64) std::atomic<node_t*> _tail      { _dummy_ptr }; ///< Tail pointer
 
-    alignas(64) node_t _dummy   {};  ///< Dummy node instance
-    mempool_t          _mempool {};  ///< Memory buffer to allocate nodes from
+    mempool_t          _mempool   { };  ///< Memory buffer to allocate nodes from
 
     /**
      * @details Recycles node, if it's dummy, to the end of the queue
@@ -162,7 +163,7 @@ public:
 DYNAMIC_MPMC_QUEUE_MEMBER(bool)
 recycle_dummy(details::misc::argument_ref_t<node_t*> dummy) noexcept {
 
-    if (dummy == &_dummy) [[unlikely]] {
+    if (dummy == _dummy_ptr) [[unlikely]] {
         dummy->_next.store(nullptr, std::memory_order_release);
         node_t *current_tail = _tail.exchange(dummy, std::memory_order_release);
         current_tail->_next.store(dummy,std::memory_order_release);
@@ -221,8 +222,9 @@ pop_node() noexcept -> node_t* {
             if (not current_head) [[unlikely]] return nullptr;
             new_head = reinterpret_cast<node_t*>(current_head->_next.load());
             if (not new_head) [[unlikely]] return nullptr;
-            if (_head.load(std::memory_order_relaxed) not_eq current_head) [[unlikely]] {
-                current_head = _head.load(std::memory_order_relaxed);
+            if (node_t* actual_head = _head.load(std::memory_order_acquire);
+                actual_head not_eq current_head) [[unlikely]] {
+                current_head = actual_head;
                 goto cxhg_loop;
             }
         } while (not _head.compare_exchange_weak(current_head, new_head,

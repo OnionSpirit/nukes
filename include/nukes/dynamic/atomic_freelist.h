@@ -29,9 +29,10 @@ protected:
 
     typedef details::nodes::dyn_node<dataT> node_t;  ///< Node type declaration
 
-    alignas(64) node_t               _dummy {};          ///< Dummy node instance
-    alignas(64) std::atomic<node_t*> _head  { &_dummy }; ///< Head pointer
-    alignas(64) std::atomic<node_t*> _tail  { &_dummy }; ///< Tail pointer
+    alignas(64) node_t               _dummy     { };  ///< Dummy node instance
+    node_t* const                    _dummy_ptr { &_dummy };
+    alignas(64) std::atomic<node_t*> _head      { _dummy_ptr }; ///< Head pointer
+    alignas(64) std::atomic<node_t*> _tail      { _dummy_ptr }; ///< Tail pointer
 
     /**
      * @details Recycles node, if it's dummy, to the end of the freelist
@@ -108,7 +109,7 @@ DYNAMIC_ATOMIC_FREELIST_MEMBER()
 DYNAMIC_ATOMIC_FREELIST_MEMBER(bool)
 recycle_dummy(node_t*& dummy) noexcept {
 
-    if (dummy == &_dummy) [[unlikely]] {
+    if (dummy == _dummy_ptr) [[unlikely]] {
         dummy->_next.store(nullptr, std::memory_order_release);
         node_t *current_tail = _tail.exchange(dummy, std::memory_order_release);
         current_tail->_next.store(dummy,std::memory_order_release);
@@ -139,22 +140,21 @@ capture(dataT*& data) noexcept {
         node_t *new_head, *current_head = _head.load(std::memory_order_acquire);
 
         do {
-            // // NOTE: Делаем через goto, потому что continue станет проверять условие
-            // //       с CAS операцией, а нам такого не надо
-            // loop_begin:
+            cxhg_loop:
             if (not current_head) [[unlikely]] {
                 data = std::forward<dataT*>(&(new node_t)->_data);
-                return true;
+                return data not_eq nullptr;
             }
             new_head = reinterpret_cast<node_t *>(current_head->_next.load());
             if (not new_head) [[unlikely]] {
                 data = std::forward<dataT*>(&(new node_t)->_data);
-                return true;
+                return data not_eq nullptr;
             }
-            // if (_head.load(std::memory_order_relaxed) != current_head) [[unlikely]] {
-            //     current_head = _head.load(std::memory_order_relaxed);
-            //     goto loop_begin;
-            // }
+            if (node_t* actual_head = _head.load(std::memory_order_acquire);
+                actual_head not_eq current_head) [[unlikely]] {
+                current_head = actual_head;
+                goto cxhg_loop;
+            }
         } while (not _head.compare_exchange_weak(current_head, new_head, std::memory_order_release,
                                                  std::memory_order_relaxed));
 
