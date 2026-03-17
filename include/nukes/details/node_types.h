@@ -21,7 +21,7 @@ struct stc_node
     : private misc::atomic_typedef_mixin<stc_node_hdr> {
 
     atomic_t                                           _next {};
-    alignas(constants::word_alignment<dataT>) dataT    _data {};
+    alignas(constants::word_alignment<dataT>) dataT    _data;
 };
 
 
@@ -31,7 +31,7 @@ struct dyn_node
     : private misc::atomic_typedef_mixin<void*> {
 
     atomic_t                                           _next {};
-    alignas(constants::word_alignment<dataT>) dataT    _data {};
+    alignas(constants::word_alignment<dataT>) dataT    _data;
 
     dyn_node* next() { return static_cast<dyn_node*>(_next.load()); }
 };
@@ -42,10 +42,8 @@ template <typename ChunkType>
 struct mem_node
     : private misc::atomic_typedef_mixin<stc_node_hdr> {
 
-    using typename misc::atomic_typedef_mixin<stc_node_hdr>::atomic_t;
-
     atomic_t                                                _next {};
-    alignas(constants::word_size) ChunkType                 _mem  {};
+    alignas(constants::word_size) ChunkType                 _mem;
     // alignas(constants::word_alignment<ChunkType>) ChunkType _mem  {};
 };
 

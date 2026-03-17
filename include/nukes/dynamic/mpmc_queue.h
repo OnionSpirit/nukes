@@ -60,11 +60,11 @@ private:
 
     typedef details::batch<node_t, dyn_mpmc_iter, mpmc_queue*> batch_t;
 
-
-    mempool_t _mempool {};  ///< Memory buffer to allocate nodes from
-    node_t    _dummy {};    ///< Dummy node instance
     alignas(64) std::atomic<node_t*> _head { &_dummy }; ///< Head pointer
     alignas(64) std::atomic<node_t*> _tail { &_dummy }; ///< Tail pointer
+
+    alignas(64) node_t _dummy   {};  ///< Dummy node instance
+    mempool_t          _mempool {};  ///< Memory buffer to allocate nodes from
 
     /**
      * @details Recycles node, if it's dummy, to the end of the queue
@@ -164,12 +164,11 @@ recycle_dummy(details::misc::argument_ref_t<node_t*> dummy) noexcept {
 
     if (dummy == &_dummy) [[unlikely]] {
         dummy->_next.store(nullptr, std::memory_order_release);
-        node_t* current_tail = _tail.load(std::memory_order_acquire);
-        while (not _tail.compare_exchange_weak(current_tail, dummy, std::memory_order_release,
-                                               std::memory_order_relaxed)) {}
+        node_t *current_tail = _tail.exchange(dummy, std::memory_order_release);
         current_tail->_next.store(dummy,std::memory_order_release);
         return true;
-    } else [[likely]] return false;
+    }
+    return false;
 }
 
 
