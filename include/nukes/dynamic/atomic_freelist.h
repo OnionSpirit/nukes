@@ -8,6 +8,7 @@
 
 #include <atomic>
 #include <cstddef>
+#include <cstdint>
 
 #include "constants.h"
 #include "nukes/details/node_types.h"
@@ -95,7 +96,7 @@ DYNAMIC_ATOMIC_FREELIST_MEMBER()
     while (_head.load() != nullptr) {
         auto temp = _head.load();
         _head.store(reinterpret_cast<node_t*>(_head.load()->_next.load()));
-        if (reinterpret_cast<ulong>(temp) == reinterpret_cast<ulong>(&_dummy))
+        if (reinterpret_cast<uintptr_t>(temp) == reinterpret_cast<uintptr_t>(&_dummy))
             continue;
 
         free(temp);
@@ -123,7 +124,7 @@ DYNAMIC_ATOMIC_FREELIST_MEMBER(bool)
 sync(dataT*& data) noexcept {
     data->~dataT();
     auto* new_tail = reinterpret_cast<node_t *>(reinterpret_cast<uint8_t *>(data) -
-        [] { node_t t{}; return reinterpret_cast<ulong>(&t._data) - reinterpret_cast<ulong>(&t); }());
+        [] { node_t t{}; return reinterpret_cast<uintptr_t>(&t._data) - reinterpret_cast<uintptr_t>(&t); }());
     new_tail->_next.store(nullptr, std::memory_order_relaxed);
 
     node_t *current_tail = _tail.exchange(new_tail, std::memory_order_release);
