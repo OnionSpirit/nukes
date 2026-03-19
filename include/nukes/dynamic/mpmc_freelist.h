@@ -30,8 +30,10 @@ protected:
 
     typedef details::nodes::dyn_node<dataT> node_t;  ///< Node type declaration
 
-    alignas(64) std::atomic<node_t*> _head { }; ///< Head pointer
-    alignas(64) std::atomic<node_t*> _tail { }; ///< Tail pointer
+    alignas(64) node_t               _dummy     { };             ///< Dummy node instance
+    node_t* const                    _dummy_ptr { &_dummy };     ///< Dummy node ptr
+    alignas(64) std::atomic<node_t*> _head      { _dummy_ptr };  ///< Head pointer
+    alignas(64) std::atomic<node_t*> _tail      { _dummy_ptr };  ///< Tail pointer
 
 public:
 
@@ -87,6 +89,8 @@ DYNAMIC_MPMC_FREELIST_MEMBER()
     while (_head.load() != nullptr) {
         auto temp = _head.load();
         _head.store(reinterpret_cast<node_t*>(_head.load()->_next.load()));
+        if (temp == _dummy_ptr)
+            continue;
 
         free(temp);
         if (_tail.load() == temp) {
@@ -104,18 +108,8 @@ sync(dataT*& data) noexcept {
         [] { node_t t{}; return reinterpret_cast<uintptr_t>(&t._data) - reinterpret_cast<uintptr_t>(&t); }());
     new_tail->_next.store(nullptr, std::memory_order_relaxed);
 
-    // NOTE: Setting tail depending on it's state
-    if (_tail.load(std::memory_order_relaxed) == nullptr) [[unlikely]]
-        _tail.store(new_tail, std::memory_order_release);
-    // NOTE: Standard multiple producing push back
-    else [[likely]] {
-        node_t *current_tail = _tail.exchange(new_tail, std::memory_order_release);
-        current_tail->_next.store(new_tail,std::memory_order_release);
-    }
-    // NOTE: Setting head if it is null
-    if (_head.load(std::memory_order_relaxed) == nullptr) [[unlikely]]
-        _head.store(new_tail, std::memory_order_release);
-
+    node_t *current_tail = _tail.exchange(new_tail, std::memory_order_release);
+    current_tail->_next.store(new_tail,std::memory_order_release);
 
     data = nullptr;
     return true;
