@@ -111,7 +111,6 @@ DYNAMIC_ATOMIC_FREELIST_MEMBER(bool)
 recycle_dummy(node_t*& dummy) noexcept {
 
     if (dummy == _dummy_ptr) [[unlikely]] {
-        dummy->_next.store(nullptr, std::memory_order_release);
         node_t *current_tail = _tail.exchange(dummy, std::memory_order_release);
         current_tail->_next.store(dummy,std::memory_order_release);
         return true;
@@ -160,6 +159,7 @@ capture(dataT*& data) noexcept {
                                                  std::memory_order_relaxed));
 
         auto* node = std::forward<node_t*>(current_head);
+        node->_next.store(nullptr,std::memory_order_release);
         if (not recycle_dummy(node)) [[likely]] {
             data = std::forward<dataT*>(&node->_data);
             return true;

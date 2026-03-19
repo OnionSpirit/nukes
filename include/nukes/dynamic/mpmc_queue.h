@@ -164,7 +164,6 @@ DYNAMIC_MPMC_QUEUE_MEMBER(bool)
 recycle_dummy(details::misc::argument_ref_t<node_t*> dummy) noexcept {
 
     if (dummy == _dummy_ptr) [[unlikely]] {
-        dummy->_next.store(nullptr, std::memory_order_release);
         node_t *current_tail = _tail.exchange(dummy, std::memory_order_release);
         current_tail->_next.store(dummy,std::memory_order_release);
         return true;
@@ -230,6 +229,7 @@ pop_node() noexcept -> node_t* {
         } while (not _head.compare_exchange_weak(current_head, new_head,
                                                  std::memory_order_release,
                                                  std::memory_order_relaxed));
+        current_head->_next.store(nullptr, std::memory_order_release);
     } while(recycle_dummy(current_head));
     return std::forward<node_t*>(current_head);
 }

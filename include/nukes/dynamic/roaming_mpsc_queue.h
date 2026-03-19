@@ -207,7 +207,6 @@ DYNAMIC_ROAMING_MPSC_QUEUE_MEMBER(bool)
 recycle_dummy(details::misc::argument_ref_t<node_t*> dummy) noexcept {
 
     if (dummy == _dummy_ptr) [[unlikely]] {
-        dummy->_next.store(nullptr, std::memory_order_release);
         node_t *current_tail = _tail.exchange(dummy, std::memory_order_release);
         current_tail->_next.store(dummy,std::memory_order_release);
         return true;
@@ -232,6 +231,7 @@ pop_node() noexcept -> node_t* {
         auto* new_head = reinterpret_cast<node_t *>(_head.load(std::memory_order_acquire)->_next.load(std::memory_order_acquire));
         if (nullptr == new_head) [[unlikely]] return nullptr;
         released_node = std::forward<node_t*>(_head.load(std::memory_order_acquire));
+        released_node->_next.store(nullptr,std::memory_order_release);
         _head.store(std::forward<node_t*>(new_head), std::memory_order_release);
     } while (recycle_dummy(released_node));
 
