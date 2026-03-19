@@ -26,7 +26,7 @@ template <typename dataT>
 struct mpsc_queue {
 
     typedef details::nodes::dyn_node<dataT> node_t;      ///< Node type declaration
-    typedef spmc_freelist<node_t> mempool_t;   ///< Memory buffer type
+    typedef spmc_freelist<node_t> mempool_t;    ///< Memory buffer type
 
 private:
 
@@ -202,6 +202,7 @@ DYNAMIC_MPSC_QUEUE_MEMBER(bool)
 recycle_dummy(details::misc::argument_ref_t<node_t*> dummy) noexcept {
 
     if (dummy == _dummy_ptr) [[unlikely]] {
+        dummy->_next.store(nullptr, std::memory_order_release);
         node_t *current_tail = _tail.exchange(dummy, std::memory_order_release);
         current_tail->_next.store(dummy,std::memory_order_release);
         return true;
@@ -226,7 +227,6 @@ pop_node() noexcept -> node_t* {
         auto* new_head = reinterpret_cast<node_t *>(_head->_next.load());
         if (nullptr == new_head) [[unlikely]] return nullptr;
         released_node = std::forward<node_t*>(_head);
-        released_node->_next.store(nullptr,std::memory_order_release);
         _head = std::forward<node_t*>(new_head);
     } while (recycle_dummy(released_node));
 

@@ -152,7 +152,7 @@ empty() noexcept {
     auto head = _head.load(std::memory_order_acquire);
     if (_tail.compare_exchange_weak(head, head, std::memory_order_release, std::memory_order_relaxed))
         return true;
-    else return false;
+    return false;
 }
 
 

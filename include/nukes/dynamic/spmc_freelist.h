@@ -66,7 +66,7 @@ public:
     spmc_freelist operator=(spmc_freelist&) = delete;
 
     spmc_freelist& operator=(spmc_freelist&& q)  noexcept {
-        this->_head = q._head.load(std::memory_order_relaxed);
+        this->_head.store(q._head.load(std::memory_order_relaxed), std::memory_order_relaxed);
         this->_tail = q._tail;
         return *this;
     }
@@ -154,7 +154,10 @@ capture(dataT*& data) noexcept {
 DYNAMIC_SPMC_FREELIST_MEMBER(bool)
 empty() noexcept {
 
-    return (_head.load(std::memory_order_relaxed) == nullptr and _tail == nullptr);
+    auto head = _head.load(std::memory_order_acquire);
+    if (_tail == head)
+        return true;
+    return false;
 }
 
 
