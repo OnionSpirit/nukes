@@ -6,7 +6,7 @@ TEST_F(atomics, do_check_atomic_freelist_consistancy) {
 
     constexpr std::size_t len = data_volume;
 
-    typedef nukes::dynamic::atomic_freelist<int> container_t;
+    typedef nukes::dynamic::mpmc_freelist<int> container_t;
     container_t container{};
 
     for (int i =0; i < thread_count; ++i)

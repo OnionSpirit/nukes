@@ -12,7 +12,7 @@
 #include "nukes/details/node_types.h"
 #include "nukes/details/misc.h"
 #include "nukes/details/batch.h"
-#include "atomic_freelist.h"
+#include "mpmc_freelist.h"
 
 
 namespace nukes::dynamic {
@@ -25,8 +25,8 @@ namespace nukes::dynamic {
 template <typename dataT>
 struct mpmc_queue {
 
-    typedef details::nodes::dyn_node<dataT> node_t;     ///< Node type declaration
-    typedef atomic_freelist<node_t> mempool_t;  ///< Memory buffer type
+    typedef details::nodes::dyn_node<dataT> node_t;  ///< Node type declaration
+    typedef mpmc_freelist<node_t> mempool_t;         ///< Memory buffer type
 
 private:
 

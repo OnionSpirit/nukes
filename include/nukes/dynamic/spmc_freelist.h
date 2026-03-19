@@ -87,8 +87,6 @@ DYNAMIC_SPMC_FREELIST_MEMBER()
     while (_head.load() != nullptr) {
         auto temp = _head.load();
         _head.store(reinterpret_cast<node_t*>(_head.load()->_next.load()));
-        if (temp == nullptr)
-            continue;
 
         free(temp);
         if (_tail == temp) {
@@ -106,17 +104,17 @@ sync(dataT*& data) noexcept {
         [] { node_t t{}; return reinterpret_cast<uintptr_t>(&t._data) - reinterpret_cast<uintptr_t>(&t); }());
     new_tail->_next.store(nullptr, std::memory_order_relaxed);
 
-    // NOTE: Setting head if it is null
-    if (_head.load(std::memory_order_relaxed) == nullptr)
-        _head.store(new_tail, std::memory_order_release);
-
     // NOTE: Setting tail depending on it's state
-    if (_tail == nullptr) {
+    if (_tail == nullptr) [[unlikely]]
         _tail = new_tail;
-    } else {
+    // NOTE: Standard single producing push back
+    else [[likely]] {
         _tail->_next.store(new_tail,std::memory_order_release);
         _tail = new_tail;
     }
+    // NOTE: Setting head if it is null
+    if (_head.load(std::memory_order_relaxed) == nullptr) [[unlikely]]
+        _head.store(new_tail, std::memory_order_release);
 
     data = nullptr;
     return true;
@@ -161,4 +159,4 @@ empty() noexcept {
 
 
 #undef DYNAMIC_SPMC_FREELIST_MEMBER
-#endif // NUKES_DYNAM_SPMC_FREELIST
+#endif // NUKES_DYNAMIC_SPMC_FREELIST

@@ -6,7 +6,7 @@
 #include <functional>
 
 
-#include "include/nukes/dynamic/atomic_freelist.h"
+#include "include/nukes/dynamic/mpmc_freelist.h"
 
 #include "include/nukes/dynamic/mpmc_queue.h"
 #include "include/nukes/dynamic/mpsc_queue.h"

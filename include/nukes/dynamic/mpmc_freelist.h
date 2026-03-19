@@ -1,9 +1,9 @@
 /**
  * @file
- * @details Contains atomic_freelist declaration
+ * @details Contains mpmc_freelist declaration
  */
-#ifndef NUKES_DYNAMIC_ATOMIC_FREELIST
-#define NUKES_DYNAMIC_ATOMIC_FREELIST
+#ifndef NUKES_DYNAMIC_MPMC_FREELIST
+#define NUKES_DYNAMIC_MPMC_FREELIST
 
 
 #include <atomic>
@@ -24,29 +24,20 @@ namespace nukes::dynamic {
  * @tparam _ Placeholder to iface compatibility
  */
 template <typename dataT, size_t _ = 0>
-struct atomic_freelist {
+struct mpmc_freelist {
 
 protected:
 
     typedef details::nodes::dyn_node<dataT> node_t;  ///< Node type declaration
 
-    alignas(64) node_t               _dummy     { };  ///< Dummy node instance
-    node_t* const                    _dummy_ptr { &_dummy };
-    alignas(64) std::atomic<node_t*> _head      { _dummy_ptr }; ///< Head pointer
-    alignas(64) std::atomic<node_t*> _tail      { _dummy_ptr }; ///< Tail pointer
-
-    /**
-     * @details Recycles node, if it's dummy, to the end of the freelist
-     * @param node Node instance
-     * @return @b True if node was dummy and recycled to freelist tail, @b False otherwise
-     */
-    [[nodiscard]] bool recycle_dummy(node_t*& n) noexcept;
+    alignas(64) std::atomic<node_t*> _head { }; ///< Head pointer
+    alignas(64) std::atomic<node_t*> _tail { }; ///< Tail pointer
 
 public:
 
-    explicit atomic_freelist() noexcept = default;
+    explicit mpmc_freelist() noexcept = default;
 
-    ~atomic_freelist() noexcept;
+    ~mpmc_freelist() noexcept;
 
     /**
      * @details Atomically pushes element to the queue
@@ -72,11 +63,11 @@ public:
      */
     [[nodiscard]] bool empty() noexcept;
 
-    atomic_freelist operator=(atomic_freelist&) = delete;
+    mpmc_freelist operator=(mpmc_freelist&) = delete;
 
-    atomic_freelist& operator=(atomic_freelist&& q)  noexcept {
-        this->_head = q._head.load(std::memory_order_relaxed);
-        this->_tail = q._tail.load(std::memory_order_relaxed);
+    mpmc_freelist& operator=(mpmc_freelist&& q)  noexcept {
+        this->_head.store(q._head.load(std::memory_order_relaxed), std::memory_order_relaxed);
+        this->_tail.store(q._tail.load(std::memory_order_relaxed), std::memory_order_relaxed);
         return *this;
     }
 };
@@ -86,18 +77,16 @@ public:
 
 // ================================ DEFINITIONS ================================
 
-#define DYNAMIC_ATOMIC_FREELIST_MEMBER(member_type)                     \
+#define DYNAMIC_MPMC_FREELIST_MEMBER(member_type)                     \
     template <typename dataT, size_t _ >                        \
-        member_type nukes::dynamic::atomic_freelist <dataT, _>::
+        member_type nukes::dynamic::mpmc_freelist <dataT, _>::
 
-DYNAMIC_ATOMIC_FREELIST_MEMBER()
-~atomic_freelist() noexcept {
+DYNAMIC_MPMC_FREELIST_MEMBER()
+~mpmc_freelist() noexcept {
 
     while (_head.load() != nullptr) {
         auto temp = _head.load();
         _head.store(reinterpret_cast<node_t*>(_head.load()->_next.load()));
-        if (reinterpret_cast<uintptr_t>(temp) == reinterpret_cast<uintptr_t>(&_dummy))
-            continue;
 
         free(temp);
         if (_tail.load() == temp) {
@@ -107,34 +96,33 @@ DYNAMIC_ATOMIC_FREELIST_MEMBER()
     }
 }
 
-DYNAMIC_ATOMIC_FREELIST_MEMBER(bool)
-recycle_dummy(node_t*& dummy) noexcept {
 
-    if (dummy == _dummy_ptr) [[unlikely]] {
-        node_t *current_tail = _tail.exchange(dummy, std::memory_order_release);
-        current_tail->_next.store(dummy,std::memory_order_release);
-        return true;
-    }
-    return false;
-}
-
-
-DYNAMIC_ATOMIC_FREELIST_MEMBER(bool)
+DYNAMIC_MPMC_FREELIST_MEMBER(bool)
 sync(dataT*& data) noexcept {
     data->~dataT();
     auto* new_tail = reinterpret_cast<node_t *>(reinterpret_cast<uint8_t *>(data) -
         [] { node_t t{}; return reinterpret_cast<uintptr_t>(&t._data) - reinterpret_cast<uintptr_t>(&t); }());
     new_tail->_next.store(nullptr, std::memory_order_relaxed);
 
-    node_t *current_tail = _tail.exchange(new_tail, std::memory_order_release);
-    current_tail->_next.store(new_tail,std::memory_order_release);
+    // NOTE: Setting tail depending on it's state
+    if (_tail.load(std::memory_order_relaxed) == nullptr) [[unlikely]]
+        _tail.store(new_tail, std::memory_order_release);
+    // NOTE: Standard multiple producing push back
+    else [[likely]] {
+        node_t *current_tail = _tail.exchange(new_tail, std::memory_order_release);
+        current_tail->_next.store(new_tail,std::memory_order_release);
+    }
+    // NOTE: Setting head if it is null
+    if (_head.load(std::memory_order_relaxed) == nullptr) [[unlikely]]
+        _head.store(new_tail, std::memory_order_release);
+
 
     data = nullptr;
     return true;
 }
 
 
-DYNAMIC_ATOMIC_FREELIST_MEMBER(bool)
+DYNAMIC_MPMC_FREELIST_MEMBER(bool)
 capture(dataT*& data) noexcept {
     while (true) {
         node_t *new_head, *current_head = _head.load(std::memory_order_acquire);
@@ -159,15 +147,12 @@ capture(dataT*& data) noexcept {
                                                  std::memory_order_relaxed));
 
         auto* node = std::forward<node_t*>(current_head);
-        node->_next.store(nullptr,std::memory_order_release);
-        if (not recycle_dummy(node)) [[likely]] {
-            data = std::forward<dataT*>(&node->_data);
-            return true;
-        }
+        data = std::forward<dataT*>(&node->_data);
+        return true;
     }
 }
 
-DYNAMIC_ATOMIC_FREELIST_MEMBER(bool)
+DYNAMIC_MPMC_FREELIST_MEMBER(bool)
 empty() noexcept {
 
     auto head = _head.load(std::memory_order_acquire);
@@ -177,5 +162,5 @@ empty() noexcept {
 }
 
 
-#undef DYNAMIC_ATOMIC_FREELIST_MEMBER
-#endif // NUKES_DYNAM_ATOMIC_FREELIST
+#undef DYNAMIC_MPMC_FREELIST_MEMBER
+#endif // NUKES_DYNAMIC_MPMC_FREELIST
