@@ -11,7 +11,7 @@
 #include "constants.h"
 #include "nukes/details/node_types.h"
 #include "nukes/details/misc.h"
-#include "atomic_freelist.h"
+#include "spmc_freelist.h"
 #include "nukes/details/batch.h"
 
 
@@ -31,7 +31,7 @@ template <typename dataT>
 struct roaming_mpsc_queue {
 
     typedef details::nodes::dyn_node<dataT> node_t; ///< Node type declaration
-    typedef atomic_freelist<node_t> mempool_t;      ///< Memory buffer type
+    typedef spmc_freelist<node_t> mempool_t;        ///< Memory buffer type
 
 private:
 
