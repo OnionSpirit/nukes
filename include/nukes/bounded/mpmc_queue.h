@@ -58,7 +58,7 @@ private:
 
     node_t*                          _buffer   { nullptr };  // NOTE: Буфер хранения памяти
     const details::constants::word   _capacity { capacityV };
-    alignas(8) storage_t             _storage  {};
+    storage_t                        _storage  {};
 
     // Cache line 1
     alignas(64) atomic_index_t  _head       {}; // NOTE: Индекс головы с защитой от false sharing
