@@ -62,10 +62,9 @@ private:
 
 protected:
 
-    alignas(64) node_t               _dummy     { };  ///< Dummy node instance
-    node_t* const                    _dummy_ptr { &_dummy };
-    alignas(64) node_t*              _head      { _dummy_ptr };  ///< Head pointer
-    alignas(64) std::atomic<node_t*> _tail      { _dummy_ptr };  ///< Tail pointer
+    alignas(64) node_t*              _head     ;  ///< Head pointer
+    alignas(64) std::atomic<node_t*> _tail     ;  ///< Tail pointer
+    alignas(64) node_t*              _dummy_ptr;  ///< Dummy helper node
 
     mempool_t          _mempool   {};  ///< Memory buffer to allocate nodes from
 
@@ -78,7 +77,11 @@ protected:
 
 public:
 
-    mpsc_queue() noexcept = default;
+    mpsc_queue() noexcept : _dummy_ptr(nullptr) {
+        if (not _mempool.capture(_dummy_ptr)) return;
+        _head = _dummy_ptr;
+        _tail.store(_dummy_ptr, std::memory_order_relaxed);
+    } ;
 
     /**
      * @details Atomically pushes element to the queue
@@ -147,12 +150,22 @@ public:
      */
     [[nodiscard]] bool empty() noexcept;
 
+    mpsc_queue(const mpsc_queue&) = delete;
+
+    mpsc_queue(mpsc_queue&& q) noexcept : _dummy_ptr(nullptr) {
+        this->_head = q._head;
+        this->_tail = q._tail.load(std::memory_order_relaxed);
+        this->_mempool = std::forward<mempool_t>(q._mempool);
+        this->_dummy_ptr = q._dummy_ptr;
+    }
+
     mpsc_queue operator=(mpsc_queue&) = delete;
 
     mpsc_queue& operator=(mpsc_queue&& q)  noexcept {
         this->_head = q._head;
         this->_tail = q._tail.load(std::memory_order_relaxed);
         this->_mempool = std::forward<mempool_t>(q._mempool);
+        this->_dummy_ptr = q._dummy_ptr;
         return *this;
     }
 };
