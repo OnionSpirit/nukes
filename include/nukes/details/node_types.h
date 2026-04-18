@@ -36,6 +36,15 @@ struct dyn_node
     dyn_node* next() { return static_cast<dyn_node*>(_next.load()); }
 };
 
+// NOTE: Тип управляющего заголовка узла для неатомарных структур с динамическим хранением узлов
+template <typename dataT>
+struct dyn_reg_node {
+
+    dyn_reg_node*                                      _next {};
+    alignas(constants::word_alignment<dataT>) dataT    _data;
+
+    dyn_reg_node* next() { return _next; }
+};
 
 // NOTE: Тип узла для структур хранения зарезервированной памяти
 template <typename ChunkType>
