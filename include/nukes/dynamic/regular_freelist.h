@@ -30,8 +30,8 @@ protected:
 
     typedef details::nodes::dyn_reg_node<dataT> node_t;  ///< Node type declaration
 
-    alignas(64) node_t* _head      { }; ///< Head pointer
-    alignas(64) node_t* _tail      { }; ///< Tail pointer
+    node_t* _head { }; ///< Head pointer
+    node_t* _tail { }; ///< Tail pointer
 
 public:
 
@@ -80,7 +80,7 @@ public:
 // ================================ DEFINITIONS ================================
 
 #define REGULAR_FREELIST_MEMBER(member_type)                     \
-    template <typename dataT, size_t _ >                        \
+    template <typename dataT, size_t _ >                         \
         member_type nukes::dynamic::reg_freelist <dataT, _>::
 
 REGULAR_FREELIST_MEMBER()
@@ -130,7 +130,7 @@ capture(dataT*& data) noexcept {
         return data not_eq nullptr;
     }
     data = std::forward<dataT*>(&_head->_data);
-    _head = _head->next();
+    _head = _head->_next;
     return true;
 }
 
