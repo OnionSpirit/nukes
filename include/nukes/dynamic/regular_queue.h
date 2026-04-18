@@ -159,12 +159,11 @@ push_node(details::misc::argument_ref_t<node_t*> node) noexcept {
 
 REGULAR_QUEUE_MEMBER(auto)
 pop_node() noexcept -> node_t* {
-    if (not _head) {
-        _tail = nullptr;
-        return _head;
-    }
     auto released_node = _head;
-    _head = _head->_next;
+    if (released_node) {
+        _head = _head->_next;
+        if (not _head) _tail = nullptr;
+    }
     return std::forward<node_t*>(released_node);
 }
 
