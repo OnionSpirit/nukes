@@ -46,6 +46,18 @@ struct dyn_reg_node {
     dyn_reg_node* next() { return _next; }
 };
 
+// NOTE: Casting node from regular queue node to atomic queue
+template <typename dataT>
+auto cast_node(dyn_reg_node<dataT>* node) noexcept {
+    return reinterpret_cast<dyn_node<dataT>*>(node);
+}
+
+// NOTE: Casting node from atomic queue to regular queue node
+template <typename dataT>
+auto cast_node(dyn_node<dataT>* node) noexcept {
+    return reinterpret_cast<dyn_reg_node<dataT>*>(node);
+}
+
 // NOTE: Тип узла для структур хранения зарезервированной памяти
 template <typename ChunkType>
 struct mem_node
