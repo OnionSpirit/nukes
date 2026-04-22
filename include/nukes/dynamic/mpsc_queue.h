@@ -62,9 +62,9 @@ private:
 
 protected:
 
-    alignas(64) node_t*              _head     ;  ///< Head pointer
     alignas(64) std::atomic<node_t*> _tail     ;  ///< Tail pointer
-    alignas(64) node_t*              _dummy_ptr;  ///< Dummy helper node
+    node_t*                          _head     ;  ///< Head pointer
+    node_t*                          _dummy_ptr;  ///< Dummy helper node
 
     mempool_t          _mempool   {};  ///< Memory buffer to allocate nodes from
 
