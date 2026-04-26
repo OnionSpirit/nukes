@@ -29,8 +29,9 @@ struct reg_queue {
 
 protected:
 
-    node_t* _head;  ///< Head pointer
-    node_t* _tail;  ///< Tail pointer
+    node_t*     _head;  ///< Head pointer
+    node_t*     _tail;  ///< Tail pointer
+    std::size_t _size;  ///< Size of queue
 
     mempool_t          _mempool   {};  ///< Memory buffer to allocate nodes from
 
@@ -82,6 +83,13 @@ public:
      * @return @b True when queue is empty (guaranteed), @b False when queue might have elements
      */
     [[nodiscard]] bool empty() noexcept;
+
+    /**
+     * @details Weak operation, can show that empty queue is not empty,
+     * but it will never show that not empty queue is empty
+     * @return @b True when queue is empty (guaranteed), @b False when queue might have elements
+     */
+    [[nodiscard]] std::size_t size() const noexcept { return _size; };
 
     reg_queue(const reg_queue&) = delete;
 
@@ -154,6 +162,7 @@ push_node(details::misc::argument_ref_t<node_t*> node) noexcept {
         _tail->_next = node;
         _tail = node;
     }
+    ++_size;
 }
 
 
@@ -164,6 +173,7 @@ pop_node() noexcept -> node_t* {
         _head = _head->_next;
         if (not _head) _tail = nullptr;
     }
+    --_size;
     return std::forward<node_t*>(released_node);
 }
 
