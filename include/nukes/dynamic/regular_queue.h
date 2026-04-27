@@ -82,7 +82,7 @@ public:
      * but it will never show that not empty queue is empty
      * @return @b True when queue is empty (guaranteed), @b False when queue might have elements
      */
-    [[nodiscard]] bool empty() noexcept;
+    [[nodiscard]] bool empty() const noexcept;
 
     /**
      * @details Weak operation, can show that empty queue is not empty,
@@ -178,7 +178,7 @@ pop_node() noexcept -> node_t* {
 }
 
 REGULAR_QUEUE_MEMBER(bool)
-empty() noexcept { return _head == nullptr; }
+empty() const noexcept { return _head == nullptr; }
 
 
 
