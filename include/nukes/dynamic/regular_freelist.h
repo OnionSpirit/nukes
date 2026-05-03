@@ -48,6 +48,14 @@ public:
     bool sync(dataT*& data) noexcept;
 
     /**
+     * @details Atomically pushes element to the queue without destruction
+     * @param data Data to be pushed
+     * @return @b True if element successfully pushed,
+     * @b False when run out of capacity
+     */
+    bool raw_sync(void* data) noexcept;
+
+    /**
      * @details Atomically pops an element from the queue to the reference
      * from function arg, returns the result of operation
      * @param data Reference to storage of pulled element
@@ -118,6 +126,26 @@ sync(dataT*& data) noexcept {
     }
 
     data = nullptr;
+    return true;
+}
+
+REGULAR_FREELIST_MEMBER(bool)
+raw_sync(void* data) noexcept {
+    auto* new_tail = reinterpret_cast<node_t *>(static_cast<uint8_t *>(data) -
+        [] { node_t t{}; return reinterpret_cast<uintptr_t>(&t._data) - reinterpret_cast<uintptr_t>(&t); }());
+    new_tail->_next = nullptr;
+
+    // NOTE: Setting tail depending on it's state
+    if (_tail == nullptr) [[unlikely]] {
+        _head = new_tail;
+        _tail = new_tail;
+    }
+    // NOTE: Standard single producing push back
+    else [[likely]] {
+        _tail->_next = new_tail;
+        _tail = new_tail;
+    }
+
     return true;
 }
 
