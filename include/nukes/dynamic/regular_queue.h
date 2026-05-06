@@ -48,6 +48,14 @@ public:
     bool push(dataT&& data) noexcept;
 
     /**
+     * @details Atomically pushes element to the head of the queue
+     * @param data Data to be pushed
+     * @return @b True if element successfully pushed,
+     * @b False when run out of capacity
+     */
+    bool push_front(dataT&& data) noexcept;
+
+    /**
      * @details Atomically pops an element from the queue to the reference
      * from function arg, returns the result of operation
      * @param data Reference to storage of pulled element
@@ -61,6 +69,12 @@ public:
      * @param node Node instance to be pushed
      */
     void push_node(details::misc::argument_ref_t<node_t*> node) noexcept;
+
+    /**
+     * @details Atomically pushes node instance to the head of the queue (Move Semantics)
+     * @param node Node instance to be pushed
+     */
+    void push_node_front(details::misc::argument_ref_t<node_t*> node) noexcept;
 
     /**
      * @details Atomically releases node to the queue mempool (Move Semantics)
@@ -136,6 +150,19 @@ push(dataT&& data) noexcept {
 
 
 REGULAR_QUEUE_MEMBER(bool)
+push_front(dataT&& data) noexcept {
+
+    node_t* new_node { nullptr };
+    if (not _mempool.capture(new_node)) return false;
+    new_node->_data = std::forward<dataT>(data);
+
+    push_node_front(new_node);
+
+    return true;
+}
+
+
+REGULAR_QUEUE_MEMBER(bool)
 pop(dataT& data) noexcept {
 
     auto* released_node = pop_node();
@@ -166,6 +193,19 @@ push_node(details::misc::argument_ref_t<node_t*> node) noexcept {
 }
 
 
+REGULAR_QUEUE_MEMBER(void)
+push_node_front(details::misc::argument_ref_t<node_t*> node) noexcept {
+    node->_next = _head;
+    if (_tail == nullptr) {
+        _head = node;
+        _tail = node;
+    } else {
+        _head = node;
+    }
+    ++_size;
+}
+
+
 REGULAR_QUEUE_MEMBER(auto)
 pop_node() noexcept -> node_t* {
     auto released_node = _head;
@@ -176,6 +216,7 @@ pop_node() noexcept -> node_t* {
     --_size;
     return std::forward<node_t*>(released_node);
 }
+
 
 REGULAR_QUEUE_MEMBER(bool)
 empty() const noexcept { return _head == nullptr; }
