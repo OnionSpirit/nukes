@@ -33,9 +33,9 @@ protected:
     node_t*     _tail;  ///< Tail pointer
     std::size_t _size;  ///< Size of queue
 
-    mempool_t          _mempool   {};  ///< Memory buffer to allocate nodes from
-
 public:
+
+    mempool_t          _mempool   {};  ///< Memory buffer to allocate nodes from
 
     reg_queue() = default;
 
