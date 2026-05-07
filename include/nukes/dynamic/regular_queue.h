@@ -99,6 +99,12 @@ public:
     [[nodiscard]] bool empty() const noexcept;
 
     /**
+     * @details Operation to get current head for inspection
+     * @return @c const ptr to the head
+     */
+    [[nodiscard]] const node_t* inspect_head() const noexcept;
+
+    /**
      * @details Weak operation, can show that empty queue is not empty,
      * but it will never show that not empty queue is empty
      * @return @b True when queue is empty (guaranteed), @b False when queue might have elements
@@ -216,6 +222,10 @@ pop_node() noexcept -> node_t* {
     --_size;
     return std::forward<node_t*>(released_node);
 }
+
+
+REGULAR_QUEUE_MEMBER(const nukes::dynamic::reg_queue<dataT>::node_t*)
+inspect_head() const noexcept { return _head; }
 
 
 REGULAR_QUEUE_MEMBER(bool)
