@@ -14,7 +14,7 @@ namespace nukes::details {
         e_l3_cache = 3, ///< L1|L2|L3 cache
     };
 
-    template <cache_locality locality_v = e_temporal>
+    template <cache_locality locality_v = e_l2_cache>
     void prefetch(const void* memptr) {
 #ifdef _MSC_VER
         if constexpr (locality_v == e_temporal)
