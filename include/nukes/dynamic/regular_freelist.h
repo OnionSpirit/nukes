@@ -13,6 +13,7 @@
 #include "constants.h"
 #include "nukes/details/node_types.h"
 #include "nukes/details/misc.h"
+#include "nukes/details/prefetch.h"
 
 
 namespace nukes::dynamic {
@@ -159,6 +160,7 @@ capture(dataT*& data) noexcept {
     }
     data = std::forward<dataT*>(&_head->_data);
     _head = _head->_next;
+    details::prefetch(_head);
     return true;
 }
 

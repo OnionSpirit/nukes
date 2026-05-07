@@ -11,6 +11,7 @@
 #include "constants.h"
 #include "nukes/details/node_types.h"
 #include "nukes/details/misc.h"
+#include "nukes/details/prefetch.h"
 #include "regular_freelist.h"
 
 
@@ -220,6 +221,7 @@ pop_node() noexcept -> node_t* {
         if (not _head) _tail = nullptr;
     }
     --_size;
+    details::prefetch(_head);
     return std::forward<node_t*>(released_node);
 }
 

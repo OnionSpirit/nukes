@@ -13,6 +13,7 @@
 #include "nukes/details/misc.h"
 #include "spmc_freelist.h"
 #include "nukes/details/batch.h"
+#include "nukes/details/prefetch.h"
 
 
 namespace nukes::dynamic {
@@ -66,8 +67,6 @@ protected:
     node_t*                          _head     ;  ///< Head pointer
     node_t*                          _dummy_ptr;  ///< Dummy helper node
 
-    mempool_t          _mempool   {};  ///< Memory buffer to allocate nodes from
-
     /**
      * @details Recycles node, if it's dummy, to the end of the queue
      * @param node Node instance
@@ -76,6 +75,8 @@ protected:
     [[nodiscard]] bool recycle_dummy(details::misc::argument_ref_t<node_t*> node) noexcept;
 
 public:
+
+    mempool_t          _mempool   {};  ///< Memory buffer to allocate nodes from
 
     mpsc_queue() noexcept : _dummy_ptr(nullptr) {
         if (not _mempool.capture(_dummy_ptr)) return;
@@ -142,6 +143,12 @@ public:
         //     _head = current_tail;
         // return batch_t { current_head, current_tail, this };
     }
+
+    /**
+     * @details Operation to get current head for inspection
+     * @return @c const ptr to the head
+     */
+    [[nodiscard]] const node_t* inspect_head() const noexcept;
 
     /**
      * @details Weak operation, can show that empty queue is not empty,
@@ -243,8 +250,14 @@ pop_node() noexcept -> node_t* {
         _head = std::forward<node_t*>(new_head);
     } while (recycle_dummy(released_node));
 
+    details::prefetch(_head);
     return std::forward<node_t*>(released_node);
 }
+
+
+DYNAMIC_MPSC_QUEUE_MEMBER(const nukes::dynamic::mpsc_queue<dataT>::node_t*)
+inspect_head() const noexcept { return _head; }
+
 
 DYNAMIC_MPSC_QUEUE_MEMBER(bool)
 empty() noexcept {
