@@ -93,6 +93,14 @@ public:
     bool push(dataT&& data) noexcept;
 
     /**
+     * @details Atomically pushes element to the head of the queue
+     * @param data Data to be pushed
+     * @return @b True if element successfully pushed,
+     * @b False when run out of capacity
+     */
+    bool push_front(dataT&& data) noexcept;
+
+    /**
      * @details Atomically pops an element from the queue to the reference
      * from function arg, returns the result of operation
      * @param data Reference to storage of pulled element
@@ -106,6 +114,12 @@ public:
      * @param node Node instance to be pushed
      */
     void push_node(details::misc::argument_ref_t<node_t*> node) noexcept;
+
+    /**
+     * @details Atomically pushes node instance to the head of the queue (Move Semantics)
+     * @param node Node instance to be pushed
+     */
+    void push_node_front(details::misc::argument_ref_t<node_t*> node) noexcept;
 
     /**
      * @details Atomically releases node to the queue mempool (Move Semantics)
@@ -202,6 +216,19 @@ push(dataT&& data) noexcept {
 
 
 DYNAMIC_MPSC_QUEUE_MEMBER(bool)
+push_front(dataT&& data) noexcept {
+
+    node_t* new_node { nullptr };
+    if (not _mempool.capture(new_node)) return false;
+    new_node->_data = std::forward<dataT>(data);
+
+    push_node_front(new_node);
+
+    return true;
+}
+
+
+DYNAMIC_MPSC_QUEUE_MEMBER(bool)
 pop(dataT& data) noexcept {
 
     auto* released_node = pop_node();
@@ -237,6 +264,13 @@ push_node(details::misc::argument_ref_t<node_t*> node) noexcept {
     node->_next.store(nullptr, std::memory_order_release);
     node_t* current_tail = _tail.exchange(node, std::memory_order_release);
     current_tail->_next.store(std::forward<node_t*>(node), std::memory_order_release);
+}
+
+
+DYNAMIC_MPSC_QUEUE_MEMBER(void)
+push_node_front(details::misc::argument_ref_t<node_t*> node) noexcept {
+    node->_next.store(_head, std::memory_order_release);
+    _head = node;
 }
 
 

@@ -75,7 +75,19 @@ public:
      * @details Atomically pushes node instance to the head of the queue (Move Semantics)
      * @param node Node instance to be pushed
      */
+    void push_list(details::misc::argument_ref_t<node_t*> lhead, details::misc::argument_ref_t<node_t*> ltail, int len) noexcept;
+
+    /**
+     * @details Atomically pushes node instance to the head of the queue (Move Semantics)
+     * @param node Node instance to be pushed
+     */
     void push_node_front(details::misc::argument_ref_t<node_t*> node) noexcept;
+
+    /**
+     * @details Atomically pushes node instance to the head of the queue (Move Semantics)
+     * @param node Node instance to be pushed
+     */
+    void push_list_front(details::misc::argument_ref_t<node_t*> lhead, details::misc::argument_ref_t<node_t*> ltail, int len) noexcept;
 
     /**
      * @details Atomically releases node to the queue mempool (Move Semantics)
@@ -201,6 +213,20 @@ push_node(details::misc::argument_ref_t<node_t*> node) noexcept {
 
 
 REGULAR_QUEUE_MEMBER(void)
+push_list(details::misc::argument_ref_t<node_t*> lhead, details::misc::argument_ref_t<node_t*> ltail, const int len) noexcept {
+    ltail->_next = nullptr;
+    if (_tail == nullptr) {
+        _head = lhead;
+        _tail = ltail;
+    } else {
+        _tail->_next = lhead;
+        _tail = ltail;
+    }
+    _size += len;
+}
+
+
+REGULAR_QUEUE_MEMBER(void)
 push_node_front(details::misc::argument_ref_t<node_t*> node) noexcept {
     node->_next = _head;
     if (_tail == nullptr) {
@@ -210,6 +236,19 @@ push_node_front(details::misc::argument_ref_t<node_t*> node) noexcept {
         _head = node;
     }
     ++_size;
+}
+
+
+REGULAR_QUEUE_MEMBER(void)
+push_list_front(details::misc::argument_ref_t<node_t*> lhead, details::misc::argument_ref_t<node_t*> ltail, const int len) noexcept {
+    ltail->_next = _head;
+    if (_tail == nullptr) {
+        _head = lhead;
+        _tail = ltail;
+    } else {
+        _head = lhead;
+    }
+    _size += len;
 }
 
 

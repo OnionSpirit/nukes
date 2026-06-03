@@ -33,7 +33,7 @@ struct dyn_node
     atomic_t                                           _next {};
     alignas(constants::word_alignment<dataT>) dataT    _data;
 
-    dyn_node* next() { return static_cast<dyn_node*>(_next.load()); }
+    dyn_node*& next() { return static_cast<dyn_node*>(_next.load()); }
 };
 
 // NOTE: Тип управляющего заголовка узла для неатомарных структур с динамическим хранением узлов
@@ -43,7 +43,7 @@ struct dyn_reg_node {
     dyn_reg_node*                                      _next {};
     alignas(constants::word_alignment<dataT>) dataT    _data;
 
-    dyn_reg_node* next() { return _next; }
+    dyn_reg_node*& next() { return _next; }
 };
 
 // NOTE: Casting node from regular queue node to atomic queue
