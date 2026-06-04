@@ -79,7 +79,28 @@ public:
         if (not _mempool.capture(_dummy_ptr)) return;
         _head = _dummy_ptr;
         _tail.store(_dummy_ptr, std::memory_order_relaxed);
-    } ;
+    }
+
+    mpmc_queue(mpmc_queue&& q)  noexcept {
+        this->_head = q._head.load(std::memory_order_relaxed);
+        this->_tail = q._tail.load(std::memory_order_relaxed);
+        this->_mempool = std::forward<mempool_t>(q._mempool);
+        this->_dummy_ptr = q._dummy_ptr;
+    }
+
+    mpmc_queue(const mpmc_queue&) = delete;
+
+    mpmc_queue operator=(const mpmc_queue&) = delete;
+
+    mpmc_queue& operator=(mpmc_queue&& q)  noexcept {
+        this->_head = q._head.load(std::memory_order_relaxed);
+        this->_tail = q._tail.load(std::memory_order_relaxed);
+        this->_mempool = std::forward<mempool_t>(q._mempool);
+        this->_dummy_ptr = q._dummy_ptr;
+        return *this;
+    }
+
+    ~mpmc_queue() noexcept = default;
 
     /**
      * @details Atomically pushes element to the queue
@@ -141,16 +162,6 @@ public:
      * @return @b True when queue is empty (guaranteed), @b False when queue might have elements
      */
     bool empty() noexcept;
-
-    mpmc_queue operator=(mpmc_queue&) = delete;
-
-    mpmc_queue& operator=(mpmc_queue&& q)  noexcept {
-        this->_head = q._head.load(std::memory_order_relaxed);
-        this->_tail = q._tail.load(std::memory_order_relaxed);
-        this->_mempool = std::forward<mempool_t>(q._mempool);
-        this->_dummy_ptr = q._dummy_ptr;
-        return *this;
-    }
 };
 
 } // end namespace nukes::dynamic

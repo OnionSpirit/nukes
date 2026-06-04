@@ -41,7 +41,22 @@ public:
         if (not _dummy_ptr) return;
         _head = _dummy_ptr;
         _tail.store(_dummy_ptr, std::memory_order_relaxed);
-    } ;
+    }
+
+    mpmc_freelist(mpmc_freelist&& q)  noexcept {
+        this->_head.store(q._head.load(std::memory_order_relaxed), std::memory_order_relaxed);
+        this->_tail.store(q._tail.load(std::memory_order_relaxed), std::memory_order_relaxed);
+        this->_dummy_ptr = q._dummy_ptr;
+    }
+
+    mpmc_freelist(const mpmc_freelist&) = delete;
+
+    mpmc_freelist& operator=(mpmc_freelist&& q)  noexcept {
+        this->_head.store(q._head.load(std::memory_order_relaxed), std::memory_order_relaxed);
+        this->_tail.store(q._tail.load(std::memory_order_relaxed), std::memory_order_relaxed);
+        this->_dummy_ptr = q._dummy_ptr;
+        return *this;
+    }
 
     ~mpmc_freelist() noexcept;
 
@@ -68,15 +83,6 @@ public:
      * @return @b True when freelist is empty (guaranteed), @b False when freelist might have elements
      */
     [[nodiscard]] bool empty() noexcept;
-
-    mpmc_freelist operator=(mpmc_freelist&) = delete;
-
-    mpmc_freelist& operator=(mpmc_freelist&& q)  noexcept {
-        this->_head.store(q._head.load(std::memory_order_relaxed), std::memory_order_relaxed);
-        this->_tail.store(q._tail.load(std::memory_order_relaxed), std::memory_order_relaxed);
-        this->_dummy_ptr = q._dummy_ptr;
-        return *this;
-    }
 };
 
 } // end namespace nukes::memory
