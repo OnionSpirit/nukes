@@ -30,14 +30,18 @@ protected:
 
     typedef details::nodes::dyn_node<dataT> node_t;  ///< Node type declaration
 
-    alignas(64) node_t               _dummy     { };             ///< Dummy node instance
-    node_t* const                    _dummy_ptr { &_dummy };     ///< Dummy node ptr
-    alignas(64) std::atomic<node_t*> _head      { _dummy_ptr };  ///< Head pointer
-    alignas(64) std::atomic<node_t*> _tail      { _dummy_ptr };  ///< Tail pointer
+    alignas(64) std::atomic<node_t*> _head     ;  ///< Head pointer
+    alignas(64) std::atomic<node_t*> _tail     ;  ///< Tail pointer
+    node_t*                          _dummy_ptr;  ///< Dummy helper node
 
 public:
 
-    explicit mpmc_freelist() noexcept = default;
+    explicit mpmc_freelist() : _dummy_ptr(nullptr) {
+        _dummy_ptr = new node_t;
+        if (not _dummy_ptr) return;
+        _head = _dummy_ptr;
+        _tail.store(_dummy_ptr, std::memory_order_relaxed);
+    } ;
 
     ~mpmc_freelist() noexcept;
 
@@ -70,6 +74,7 @@ public:
     mpmc_freelist& operator=(mpmc_freelist&& q)  noexcept {
         this->_head.store(q._head.load(std::memory_order_relaxed), std::memory_order_relaxed);
         this->_tail.store(q._tail.load(std::memory_order_relaxed), std::memory_order_relaxed);
+        this->_dummy_ptr = q._dummy_ptr;
         return *this;
     }
 };
