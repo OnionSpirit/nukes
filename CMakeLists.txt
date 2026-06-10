@@ -12,6 +12,8 @@ set(NUKES_SOURCES include
 include(FetchContent)
 
 add_library(${PROJECT_NAME} INTERFACE ${NUKES_SOURCES})
+target_include_directories(${PROJECT_NAME} INTERFACE ${NUKES_SOURCES})
+target_link_directories(${PROJECT_NAME} INTERFACE ${NUKES_SOURCES})
 
 SET(TESTS OFF CACHE BOOL "Build tests")
 
@@ -21,8 +23,6 @@ IF(${TESTS})
             GIT_TAG main
             SOURCE_DIR ${GTEST_PATH})
     FetchContent_MakeAvailable(googletest)
-    target_include_directories(${PROJECT_NAME} INTERFACE ${NUKES_SOURCES})
-    target_link_directories(${PROJECT_NAME} INTERFACE ${NUKES_SOURCES})
 
     add_executable(${PROJECT_NAME}_test main.cpp tests.cpp fixture.h)
     target_link_libraries(${PROJECT_NAME}_test PRIVATE ${PROJECT_NAME} atomic gtest)
