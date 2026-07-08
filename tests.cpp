@@ -230,7 +230,7 @@ TEST_F(atomics, do_check_dynamic_mpmc_batch) {
     }
 
     // TODO: Figure out what gives extra element
-    // EXPECT_EQ(interactive_arr.size(), len);
+    EXPECT_EQ(interactive_arr.size(), len - 1);
 
     std::unordered_set<int> thread_ids;
 

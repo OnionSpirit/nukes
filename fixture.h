@@ -70,10 +70,15 @@ public:
 
         // NOTE: Pushing our thread ID then reading some thread ID and storing it into local container
         // NOTE: Each thread makes same count of push and pop operations
-        for (int interactive =0, i =0; i < data_volume / thread_count; ++i) {
-            while (not container.push(thread_id)) {}
-            while (not container.pop(interactive)) {}
-            arr.emplace_back(interactive);
+        auto encounter = [&](const int i) { return i < data_volume / thread_count; };
+        int interactive =0, pushes =0, pops =0;
+        while (encounter(pushes) or encounter(pops)) {
+            if (encounter(pushes) and container.push(thread_id))
+                ++pushes;
+            if (encounter(pops) and container.pop(interactive)) {
+                ++pops;
+                arr.emplace_back(interactive);
+            }
         }
 
         // NOTE: Storing all popped IDs from local container to common container
