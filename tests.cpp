@@ -99,9 +99,15 @@ TEST_F(atomics, do_check_dynamic_mpmc_consistancy) {
     std::latch accessor{thread_count};
 
     // NOTE: Starting threads
-    for (int i =0; i < thread_count; ++i)
-        threads.emplace_back(thr_mpsc_container_walker<container_t>, std::ref(container), std::ref(accessor));
-
+    for (int cpu_num = 0, i =0; i < thread_count; ++cpu_num, ++i) {
+        auto thread_handle = threads
+            .emplace_back(thr_mpmc_container_walker<container_t>, std::ref(container), std::ref(accessor))
+            .native_handle();
+        cpu_set_t cpuset;
+        CPU_ZERO(&cpuset);
+        CPU_SET(cpu_num % thread_count, &cpuset);
+        pthread_setaffinity_np(thread_handle, sizeof(cpu_set_t), &cpuset);
+    }
 
     for (auto& e : threads)
         e.join();
@@ -229,7 +235,9 @@ TEST_F(atomics, do_check_dynamic_mpmc_batch) {
         interactive_arr.emplace_back(interactive);
     }
 
-    // TODO: Figure out what gives extra element
+    // NOTE: Always leaves tail element
+    // NOTE: because can't use nullptr as the end() condition of the batch
+    // NOTE: because may break multithread consumption access
     EXPECT_EQ(interactive_arr.size(), len - 1);
 
     std::unordered_set<int> thread_ids;

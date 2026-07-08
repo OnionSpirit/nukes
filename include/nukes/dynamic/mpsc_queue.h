@@ -142,20 +142,9 @@ public:
      * для прохода по списку
      */
     batch_t pop_batch() noexcept {
-        node_t *current_head = _head;
-        node_t *current_tail = _tail.load(std::memory_order_relaxed);
+        node_t *current_head = _head, *current_tail = _tail.load(std::memory_order_relaxed);
         _head = current_tail;
         return batch_t { current_head, current_tail, this };
-        // TODO: Weird stuff
-        // node_t *current_head = _head;
-        // node_t *current_tail = _tail.load(std::memory_order_relaxed);
-        // do {
-        //     if (not current_head or not current_tail) [[unlikely]] return batch_t{};
-        // } while (not _tail.compare_exchange_weak(current_tail, current_head,
-        //                                          std::memory_order_release,
-        //                                          std::memory_order_relaxed));
-        //     _head = current_tail;
-        // return batch_t { current_head, current_tail, this };
     }
 
     /**
