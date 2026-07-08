@@ -59,11 +59,11 @@ public:
         arr.reserve(data_volume / thread_count);
 
         // NOTE: Collecting thread ID to use it as data in the container. This will allow to check thread access consistency
-        std::stringstream _thread_alias_ss{};
-        _thread_alias_ss << std::this_thread::get_id();
-        std::string _thread_alias_string = _thread_alias_ss.str();
+        std::stringstream thread_alias_ss{};
+        thread_alias_ss << std::this_thread::get_id();
+        std::string _thread_alias_string = thread_alias_ss.str();
         std::ranges::reverse(_thread_alias_string);
-        int _thread_id = std::stoi(_thread_alias_string.substr(0, 6));
+        int thread_id = std::stoi(_thread_alias_string.substr(0, 6));
 
         // NOTE: Waiting for all threads started
         accessor.arrive_and_wait();
@@ -71,7 +71,7 @@ public:
         // NOTE: Pushing our thread ID then reading some thread ID and storing it into local container
         // NOTE: Each thread makes same count of push and pop operations
         for (int interactive =0, i =0; i < data_volume / thread_count; ++i) {
-            while (not container.push(_thread_id)) {}
+            while (not container.push(thread_id)) {}
             while (not container.pop(interactive)) {}
             arr.emplace_back(interactive);
         }
@@ -109,18 +109,18 @@ public:
         };
 
         // NOTE: Collecting thread ID to use it as data in the container. This will allow to check thread access consistency
-        std::stringstream _thread_alias_ss{};
-        _thread_alias_ss << std::this_thread::get_id();
-        std::string _thread_alias_string = _thread_alias_ss.str();
+        std::stringstream thread_alias_ss{};
+        thread_alias_ss << std::this_thread::get_id();
+        std::string _thread_alias_string = thread_alias_ss.str();
         std::ranges::reverse(_thread_alias_string);
-        int _thread_id = std::stoi(_thread_alias_string.substr(0, 6));
+        int thread_id = std::stoi(_thread_alias_string.substr(0, 6));
 
         // NOTE: Waiting for all threads started
         accessor.arrive_and_wait();
 
         // NOTE: Pushing local thread ID as data
         for (int i =0; i < data_volume / thread_count; ++i)
-            while (not container.push(_thread_id)) {};
+            while (not container.push(thread_id)) {};
     }
 
     template <typename mempoolT>

@@ -39,9 +39,9 @@ private:
             : _queue(queue) {}
 
         dyn_mpmc_iter& prefix_increment(node_t*& ptr) {
-            node_t* new_ptr = ptr->next(), *next_next_ptr = new_ptr->next();
-            if (_queue->recycle_dummy(new_ptr))
-                new_ptr = next_next_ptr;
+            node_t* new_ptr = ptr->next();
+            if (node_t* new_new_ptr = new_ptr->next(); _queue->recycle_dummy(new_ptr))
+                new_ptr = new_new_ptr;
             _queue->_mempool.sync(ptr);
             ptr = new_ptr;
             return *this;
@@ -49,9 +49,9 @@ private:
 
         dyn_mpmc_iter postfix_increment(node_t*& ptr)  {
             dyn_mpmc_iter tmp = *this;
-            node_t* new_ptr = ptr->next(), *next_next_ptr = new_ptr->next();
-            if (_queue->recycle_dummy(new_ptr))
-                new_ptr = next_next_ptr;
+            node_t* new_ptr = ptr->next();
+            if (node_t* new_new_ptr = new_ptr->next(); _queue->recycle_dummy(new_ptr))
+                new_ptr = new_new_ptr;
             _queue->_mempool.sync(ptr);
             ptr = new_ptr;
             return tmp;
@@ -146,11 +146,11 @@ public:
      * для прохода по списку
      */
     batch_t pop_batch() noexcept {
-        node_t *current_head = _head.load(std::memory_order_relaxed);
-        node_t *current_tail = _tail.load(std::memory_order_relaxed);
+        node_t *current_head = _head.load(std::memory_order_acquire);
+        node_t *current_tail = _tail.load(std::memory_order_acquire);
             do {
                 if (not current_head or not current_tail) [[unlikely]] return batch_t{};
-            } while (not _head.compare_exchange_weak(current_head, current_tail,
+            } while (not _head.compare_exchange_strong(current_head, current_tail,
                                                      std::memory_order_release,
                                                      std::memory_order_relaxed));
         return batch_t { current_head, current_tail, this };

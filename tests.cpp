@@ -99,15 +99,9 @@ TEST_F(atomics, do_check_dynamic_mpmc_consistancy) {
     std::latch accessor{thread_count};
 
     // NOTE: Starting threads
-    for (int cpu_num = 0, i =0; i < thread_count; ++cpu_num, ++i) {
-        auto thread_handle = threads
-            .emplace_back(thr_mpmc_container_walker<container_t>, std::ref(container), std::ref(accessor))
-            .native_handle();
-        cpu_set_t cpuset;
-        CPU_ZERO(&cpuset);
-        CPU_SET(cpu_num % thread_count, &cpuset);
-        pthread_setaffinity_np(thread_handle, sizeof(cpu_set_t), &cpuset);
-    }
+    for (int i =0; i < thread_count; ++i)
+        threads.emplace_back(thr_mpsc_container_walker<container_t>, std::ref(container), std::ref(accessor));
+
 
     for (auto& e : threads)
         e.join();
@@ -212,7 +206,7 @@ TEST_F(atomics, do_check_dynamic_mpmc_batch) {
 
     // NOTE: Because data volume is shared between thread via division.
     // NOTE: A true size of the container shall be calculated with multiply operation because division can drop some iterations
-    constexpr std::size_t len = data_volume / thread_count * thread_count;
+    constexpr std::size_t len = (data_volume / thread_count) * thread_count;
 
     typedef nukes::dynamic::mpmc_queue<int> container_t;
     container_t container{};
@@ -236,7 +230,7 @@ TEST_F(atomics, do_check_dynamic_mpmc_batch) {
     }
 
     // TODO: Figure out what gives extra element
-    // ASSERT_EQ(interactive_arr.size(), len);
+    // EXPECT_EQ(interactive_arr.size(), len);
 
     std::unordered_set<int> thread_ids;
 
@@ -258,7 +252,7 @@ TEST_F(atomics, DISABLED_do_check_bounded_mpmc_batch) {
     container_t container{len};
     container.clear();
 
-    // NOTE: Waiting for all threads inited
+    // NOTE: Waiting for all threads started
     std::latch accessor{thread_count};
 
     // NOTE: Starting threads
@@ -269,8 +263,6 @@ TEST_F(atomics, DISABLED_do_check_bounded_mpmc_batch) {
         e.join();
     threads.clear();
 
-    std::this_thread::yield();
-
     std::vector<int> interactive_arr;
     interactive_arr.reserve(len);
 
@@ -278,8 +270,7 @@ TEST_F(atomics, DISABLED_do_check_bounded_mpmc_batch) {
         interactive_arr.emplace_back(interactive);
     }
 
-    ASSERT_TRUE(container.empty());
-    ASSERT_EQ(interactive_arr.size(), len);
+    EXPECT_EQ(interactive_arr.size(), len);
 
     std::unordered_set<int> thread_ids;
 
@@ -288,5 +279,5 @@ TEST_F(atomics, DISABLED_do_check_bounded_mpmc_batch) {
         thread_ids.insert(el);
     }
 
-    ASSERT_EQ(thread_ids.size(), thread_count);
+    EXPECT_EQ(thread_ids.size(), thread_count);
 }

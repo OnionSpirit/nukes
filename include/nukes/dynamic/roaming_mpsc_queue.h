@@ -44,9 +44,9 @@ private:
             : _queue(queue) {}
 
         dyn_roaming_mpsc_iter& prefix_increment(node_t*& ptr) {
-            node_t* new_ptr = ptr->next(), *next_next_ptr = new_ptr->next();
-            if (_queue->recycle_dummy(new_ptr))
-                new_ptr = next_next_ptr;
+            node_t* new_ptr = ptr->next();
+            if (node_t* new_new_ptr = new_ptr->next(); _queue->recycle_dummy(new_ptr))
+                new_ptr = new_new_ptr;
             _queue->_mempool.sync(ptr);
             ptr = new_ptr;
             return *this;
@@ -54,9 +54,9 @@ private:
 
         dyn_roaming_mpsc_iter postfix_increment(node_t*& ptr)  {
             dyn_roaming_mpsc_iter tmp = *this;
-            node_t* new_ptr = ptr->next(), *next_next_ptr = new_ptr->next();
-            if (_queue->recycle_dummy(new_ptr))
-                new_ptr = next_next_ptr;
+            node_t* new_ptr = ptr->next();
+            if (node_t* new_new_ptr = new_ptr->next(); _queue->recycle_dummy(new_ptr))
+                new_ptr = new_new_ptr;
             _queue->_mempool.sync(ptr);
             ptr = new_ptr;
             return tmp;
