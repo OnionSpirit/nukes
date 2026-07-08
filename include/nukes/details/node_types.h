@@ -33,7 +33,7 @@ struct dyn_node
     atomic_t                                           _next {};
     alignas(constants::word_alignment<dataT>) dataT    _data;
 
-    dyn_node*& next() { return static_cast<dyn_node*>(_next.load()); }
+    dyn_node* next() { return static_cast<dyn_node*>(_next.load()); }
 };
 
 // NOTE: Тип управляющего заголовка узла для неатомарных структур с динамическим хранением узлов
