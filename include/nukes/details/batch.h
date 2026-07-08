@@ -71,6 +71,8 @@ namespace nukes::details {
         iterator_t begin() const { return iterator_t(_head, std::forward<iteratorArgs>(std::get<iteratorArgs>(_args))...); }
         iterator_t end() const { return iterator_t(_tail, std::forward<iteratorArgs>(std::get<iteratorArgs>(_args))...); }
 
+        nodeT* get_head() { return _head; }
+        nodeT* get_tail() { return _tail; }
     };
 
 } // end namespace nukes

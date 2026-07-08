@@ -144,6 +144,12 @@ public:
     batch_t pop_batch() noexcept {
         node_t *current_head = _head, *current_tail = _tail.load(std::memory_order_relaxed);
         _head = current_tail;
+        // NOTE: Taking dummy back from batch
+        {
+            if (auto* before_dummy = static_cast<node_t*>(_dummy_ptr->_data)) [[likely]]
+               before_dummy->_next.store(_dummy_ptr->_next.load(std::memory_order_relaxed), std::memory_order_relaxed);
+            recycle_dummy(_dummy_ptr);
+        }
         return batch_t { current_head, current_tail, this };
     }
 
@@ -240,6 +246,11 @@ recycle_dummy(details::misc::argument_ref_t<node_t*> dummy) noexcept {
     if (dummy == _dummy_ptr) [[unlikely]] {
         dummy->_next.store(nullptr, std::memory_order_release);
         node_t *current_tail = _tail.exchange(dummy, std::memory_order_release);
+        // NOTE: Pushing prev node ptr to dummy data section
+        {
+            node_t* data_ptr = reinterpret_cast<node_t*>(&_dummy_ptr->_data);
+            data_ptr = current_tail;
+        }
         current_tail->_next.store(dummy,std::memory_order_release);
         return true;
     }

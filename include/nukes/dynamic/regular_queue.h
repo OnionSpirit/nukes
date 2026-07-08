@@ -32,7 +32,6 @@ protected:
 
     node_t*     _head;  ///< Head pointer
     node_t*     _tail;  ///< Tail pointer
-    std::size_t _size;  ///< Size of queue
 
 public:
 
@@ -75,7 +74,7 @@ public:
      * @details Atomically pushes node instance to the head of the queue (Move Semantics)
      * @param node Node instance to be pushed
      */
-    void push_list(details::misc::argument_ref_t<node_t*> lhead, details::misc::argument_ref_t<node_t*> ltail, int len) noexcept;
+    void push_list(details::misc::argument_ref_t<node_t*> lhead, details::misc::argument_ref_t<node_t*> ltail) noexcept;
 
     /**
      * @details Atomically pushes node instance to the head of the queue (Move Semantics)
@@ -87,7 +86,7 @@ public:
      * @details Atomically pushes node instance to the head of the queue (Move Semantics)
      * @param node Node instance to be pushed
      */
-    void push_list_front(details::misc::argument_ref_t<node_t*> lhead, details::misc::argument_ref_t<node_t*> ltail, int len) noexcept;
+    void push_list_front(details::misc::argument_ref_t<node_t*> lhead, details::misc::argument_ref_t<node_t*> ltail) noexcept;
 
     /**
      * @details Atomically releases node to the queue mempool (Move Semantics)
@@ -116,13 +115,6 @@ public:
      * @return @c const ptr to the head
      */
     [[nodiscard]] const node_t* inspect_head() const noexcept;
-
-    /**
-     * @details Weak operation, can show that empty queue is not empty,
-     * but it will never show that not empty queue is empty
-     * @return @b True when queue is empty (guaranteed), @b False when queue might have elements
-     */
-    [[nodiscard]] std::size_t size() const noexcept { return _size; };
 
     reg_queue(const reg_queue&) = delete;
 
@@ -208,12 +200,11 @@ push_node(details::misc::argument_ref_t<node_t*> node) noexcept {
         _tail->_next = node;
         _tail = node;
     }
-    ++_size;
 }
 
 
 REGULAR_QUEUE_MEMBER(void)
-push_list(details::misc::argument_ref_t<node_t*> lhead, details::misc::argument_ref_t<node_t*> ltail, const int len) noexcept {
+push_list(details::misc::argument_ref_t<node_t*> lhead, details::misc::argument_ref_t<node_t*> ltail) noexcept {
     ltail->_next = nullptr;
     if (_tail == nullptr) {
         _head = lhead;
@@ -222,7 +213,6 @@ push_list(details::misc::argument_ref_t<node_t*> lhead, details::misc::argument_
         _tail->_next = lhead;
         _tail = ltail;
     }
-    _size += len;
 }
 
 
@@ -235,12 +225,11 @@ push_node_front(details::misc::argument_ref_t<node_t*> node) noexcept {
     } else {
         _head = node;
     }
-    ++_size;
 }
 
 
 REGULAR_QUEUE_MEMBER(void)
-push_list_front(details::misc::argument_ref_t<node_t*> lhead, details::misc::argument_ref_t<node_t*> ltail, const int len) noexcept {
+push_list_front(details::misc::argument_ref_t<node_t*> lhead, details::misc::argument_ref_t<node_t*> ltail) noexcept {
     ltail->_next = _head;
     if (_tail == nullptr) {
         _head = lhead;
@@ -248,7 +237,6 @@ push_list_front(details::misc::argument_ref_t<node_t*> lhead, details::misc::arg
     } else {
         _head = lhead;
     }
-    _size += len;
 }
 
 
@@ -259,7 +247,6 @@ pop_node() noexcept -> node_t* {
         _head = _head->_next;
         if (not _head) _tail = nullptr;
     }
-    --_size;
     details::prefetch(_head);
     return std::forward<node_t*>(released_node);
 }
