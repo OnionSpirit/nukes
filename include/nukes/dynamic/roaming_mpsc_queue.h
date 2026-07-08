@@ -43,7 +43,7 @@ private:
         explicit dyn_roaming_mpsc_iter(roaming_mpsc_queue* queue)
             : _queue(queue) {}
 
-        dyn_roaming_mpsc_iter& postfix_increment(details::misc::argument_ref_t<node_t*> ptr) {
+        dyn_roaming_mpsc_iter& prefix_increment(node_t*& ptr) {
             node_t* new_ptr = ptr->next(), *next_next_ptr = new_ptr->next();
             if (_queue->recycle_dummy(new_ptr))
                 new_ptr = next_next_ptr;
@@ -52,7 +52,7 @@ private:
             return *this;
         }
 
-        dyn_roaming_mpsc_iter prefix_increment(details::misc::argument_ref_t<node_t*> ptr)  {
+        dyn_roaming_mpsc_iter postfix_increment(node_t*& ptr)  {
             dyn_roaming_mpsc_iter tmp = *this;
             node_t* new_ptr = ptr->next(), *next_next_ptr = new_ptr->next();
             if (_queue->recycle_dummy(new_ptr))

@@ -8,8 +8,8 @@ namespace nukes::details {
 
     template <typename nodeT, typename iteratorT>
     concept is_batch_iterable = requires(nodeT*& node, iteratorT iter) {
-        { iter.postfix_increment(node) } -> std::same_as<iteratorT&>;
-        { iter.prefix_increment(node) } -> std::same_as<iteratorT>;
+        { iter.prefix_increment(node) } -> std::same_as<iteratorT&>;
+        { iter.postfix_increment(node) } -> std::same_as<iteratorT>;
     };
 
     template<typename nodeT, class iteratorImpl, typename ... iteratorImplArgs>
@@ -34,12 +34,12 @@ namespace nukes::details {
         nodeT* operator->() { return _ptr; }
 
         batch_iterator_traits& operator++() {
-            _iter = _iter.postfix_increment(_ptr);
+            _iter = _iter.prefix_increment(_ptr);
             return *this;
         }
 
         batch_iterator_traits operator++(int) {
-            _iter = _iter.prefix_increment(_ptr);
+            _iter = _iter.postfix_increment(_ptr);
             return *this;
         }
 

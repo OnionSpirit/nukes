@@ -42,12 +42,12 @@ private:
         explicit bou_mpmc_iter(mpmc_queue* queue)
             : _queue(queue) {}
 
-        bou_mpmc_iter& postfix_increment(details::misc::argument_ref_t<node_t*> ptr) {
+        bou_mpmc_iter& prefix_increment(node_t*& ptr) {
             ptr += 1;
             return *this;
         }
 
-        bou_mpmc_iter prefix_increment(details::misc::argument_ref_t<node_t*> ptr)  {
+        bou_mpmc_iter postfix_increment(node_t*& ptr)  {
             bou_mpmc_iter tmp = *this;
             ptr += 1;
             return tmp;
