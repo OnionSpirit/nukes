@@ -154,14 +154,14 @@ public:
      * @details Operation to get current head for inspection
      * @return @c const ptr to the head
      */
-    [[nodiscard]] const node_t* inspect_head() const noexcept;
+    [[nodiscard]] const node_t* inspect_head() noexcept;
 
     /**
      * @details Weak operation, can show that empty queue is not empty,
      * but it will never show that not empty queue is empty
      * @return @b True when queue is empty (guaranteed), @b False when queue might have elements
      */
-    [[nodiscard]] bool empty() noexcept;
+    [[nodiscard]] bool empty() const noexcept;
 
     mpsc_queue(const mpsc_queue&) = delete;
 
@@ -283,11 +283,22 @@ pop_node() noexcept -> node_t* {
 
 
 DYNAMIC_MPSC_QUEUE_MEMBER(const nukes::dynamic::mpsc_queue<dataT>::node_t*)
-inspect_head() const noexcept { return _head; }
+inspect_head() noexcept {
+    auto next_head = _head->_next.load(std::memory_order_relaxed);
+
+    if (empty()) return nullptr;
+
+    if (recycle_dummy(_head)) [[unlikely]] {
+        _head = static_cast<node_t*>(next_head);
+        return inspect_head();
+    }
+
+    return _head;
+}
 
 
 DYNAMIC_MPSC_QUEUE_MEMBER(bool)
-empty() noexcept {
+empty() const noexcept {
 
     if (_head == _tail.load(std::memory_order_acquire))
         return true;
