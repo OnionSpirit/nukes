@@ -86,8 +86,12 @@ namespace nukes::details {
     // NOTE: Taking dummy back from batch
     template <typename queue_t>
     void eject_dummy(queue_t* dummy_owner) {
-        if (auto* before_dummy = reinterpret_cast<queue_t::node_t*>(dummy_owner->_dummy_ptr->_data)) [[likely]]
-           before_dummy->_next.store(dummy_owner->_dummy_ptr->_next.load(std::memory_order_relaxed), std::memory_order_relaxed);
+        if (void* mem_ptr = &dummy_owner->_dummy_ptr->_data) [[likely]] {
+            auto** before_dummy = static_cast<queue_t::node_t**>(mem_ptr);
+            (*before_dummy)->_next.store(
+                dummy_owner->_dummy_ptr->_next.load(std::memory_order_relaxed), std::memory_order_relaxed
+            );
+        }
         if (not dummy_owner->recycle_dummy(dummy_owner->_dummy_ptr))
             std::cerr << "dummy recycling rejected\n";
     }
