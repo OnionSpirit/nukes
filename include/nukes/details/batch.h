@@ -79,8 +79,8 @@ namespace nukes::details {
     template <typename node_t>
     void set_prev_to_dummy(node_t*& prev, node_t*& dummy) {
         void* mem_ptr = &dummy->_data;
-        node_t* data_ptr = static_cast<node_t*>(mem_ptr);
-        data_ptr = prev;
+        auto** data_ptr = static_cast<node_t**>(mem_ptr);
+        *data_ptr = prev;
     }
 
     // NOTE: Taking dummy back from batch
@@ -88,7 +88,8 @@ namespace nukes::details {
     void eject_dummy(queue_t* dummy_owner) {
         if (auto* before_dummy = reinterpret_cast<queue_t::node_t*>(dummy_owner->_dummy_ptr->_data)) [[likely]]
            before_dummy->_next.store(dummy_owner->_dummy_ptr->_next.load(std::memory_order_relaxed), std::memory_order_relaxed);
-        dummy_owner->recycle_dummy(dummy_owner->_dummy_ptr);
+        if (not dummy_owner->recycle_dummy(dummy_owner->_dummy_ptr))
+            std::cerr << "dummy recycling rejected\n";
     }
 
 } // end namespace nukes

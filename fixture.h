@@ -99,7 +99,7 @@ public:
 
         // NOTE: Pushing counter as data
         for (int i =0; i < data_volume; ++i)
-            container.push(i);
+            EXPECT_TRUE(container.push(i));
     }
 
     template <typename containerT>
