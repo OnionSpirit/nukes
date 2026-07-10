@@ -31,6 +31,7 @@ struct dyn_node
     : private misc::atomic_typedef_mixin<void*> {
 
     atomic_t                                           _next {};
+    void*                                              _prev {}; // NOTE: Helper for push batch operation
     alignas(constants::word_alignment<dataT>) dataT    _data;
 
     dyn_node* next() { return static_cast<dyn_node*>(_next.load()); }
@@ -40,8 +41,8 @@ struct dyn_node
 template <typename dataT>
 struct dyn_reg_node {
 
-    dyn_reg_node*                                      _next {};
-    alignas(constants::word_alignment<dataT>) dataT    _data;
+    alignas(2 * constants::word_alignment<dataT>) dyn_reg_node*  _next {};
+    alignas(constants::word_alignment<dataT>) dataT              _data;
 
     dyn_reg_node*& next() { return _next; }
 };

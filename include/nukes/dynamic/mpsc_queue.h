@@ -59,7 +59,9 @@ private:
         }
     };
 
-    typedef details::batch<node_t, dyn_mpsc_iter, mpsc_queue*> batch_t;
+    typedef details::batch<node_t, dyn_mpsc_iter, mpsc_queue> batch_t;
+
+    friend details::recycle_helper;
 
 protected:
 
@@ -73,8 +75,6 @@ protected:
      * @return @b True if node was dummy and recycled to queue tail, @b False otherwise
      */
     [[nodiscard]] bool recycle_dummy(details::misc::argument_ref_t<node_t*> node) noexcept;
-
-    friend void details::eject_dummy<mpsc_queue>(mpsc_queue*);
 
 public:
 
@@ -146,8 +146,7 @@ public:
     batch_t pop_batch() noexcept {
         node_t *current_head = _head, *current_tail = _tail.load(std::memory_order_relaxed);
         _head = current_tail;
-        details::eject_dummy(this);
-        return batch_t { current_head, current_tail, this };
+        return batch_t { current_head, current_tail, _dummy_ptr, this };
     }
 
     /**
@@ -243,7 +242,6 @@ recycle_dummy(details::misc::argument_ref_t<node_t*> dummy) noexcept {
     if (dummy == _dummy_ptr) [[unlikely]] {
         dummy->_next.store(nullptr, std::memory_order_release);
         node_t *current_tail = _tail.exchange(dummy, std::memory_order_release);
-        details::set_prev_to_dummy(current_tail, dummy);
         current_tail->_next.store(dummy,std::memory_order_release);
         return true;
     }
@@ -256,6 +254,7 @@ push_node(details::misc::argument_ref_t<node_t*> node) noexcept {
 
     node->_next.store(nullptr, std::memory_order_release);
     node_t* current_tail = _tail.exchange(node, std::memory_order_release);
+    node->_prev = current_tail;
     current_tail->_next.store(std::forward<node_t*>(node), std::memory_order_release);
 }
 

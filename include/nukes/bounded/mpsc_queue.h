@@ -3,6 +3,8 @@
 
 #include <atomic>
 #include <tuple>
+
+#include "batch.h"
 #include "nukes/details/constants.h"
 #include "nukes/details/node_types.h"
 #include "nukes/details/misc.h"
@@ -56,7 +58,7 @@ private:
         }
     };
 
-    typedef details::batch<node_t, bou_mpsc_iter, mpsc_queue*> batch_t;
+    typedef details::batch<node_t, bou_mpsc_iter, mpsc_queue> batch_t;
 
     node_t*                          _buffer   { nullptr };  // NOTE: Буфер хранения памяти
     const details::constants::word   _capacity { capacityV };
@@ -105,7 +107,7 @@ public:
 
         _head.store(current_tail, std::memory_order_relaxed);
 
-        return batch_t { &_buffer[current_head.index % _capacity], &_buffer[current_tail % _capacity], this };
+        return batch_t { &_buffer[current_head.index % _capacity], &_buffer[current_tail % _capacity], nullptr, this };
     }
 
 

@@ -12,7 +12,7 @@ namespace nukes::details {
         { iter.postfix_increment(node) } -> std::same_as<iteratorT>;
     };
 
-    template<typename nodeT, class iteratorImpl, typename ... iteratorImplArgs>
+    template<typename nodeT, class iteratorImpl, typename batch_producer_t>
     class batch_iterator_traits {
 
         nodeT* _ptr;
@@ -21,14 +21,14 @@ namespace nukes::details {
         static_assert(is_batch_iterable<nodeT, iteratorImpl>,
             "Iterator implementation is not actually an iterator");
 
-        static_assert(std::constructible_from<iteratorImpl, iteratorImplArgs...>,
-            "Passed iterator can't be constructed from passed args");
+        // static_assert(std::constructible_from<iteratorImpl, batch_producer_t>,
+        //     "Passed iterator can't be constructed from passed args");
 
     public:
 
-        explicit batch_iterator_traits(nodeT* ptr, iteratorImplArgs&& ... args)
+        explicit batch_iterator_traits(nodeT* ptr, batch_producer_t* producer)
             : _ptr(ptr)
-            , _iter(std::forward<iteratorImplArgs>(args)...) {}
+            , _iter(std::forward<batch_producer_t*>(producer)) {}
 
         auto& operator*() const { return _ptr->_data; }
         nodeT* operator->() { return _ptr; }
@@ -47,54 +47,98 @@ namespace nukes::details {
         bool operator!=(const batch_iterator_traits& other) const { return _ptr != other._ptr; }
     };
 
-    template <typename nodeT, class iteratorT, typename ... iteratorArgs>
+    // NOTE: A helper for correct recycling of the dummy node from the batch consumer
+    struct recycle_helper {
+
+        enum class result : char {
+            e_dummy_reached,
+            e_tail_reached,
+            e_none
+        };
+
+    private:
+
+        void* _producer {};
+        void* _dummy {};
+        void* _tail {};
+        result (*_recycle_callback)(void*, void*, void*, void*) {};
+
+        template <typename producer_t>
+        static auto recycle_impl(void* producer, void* tail, void* dummy, void* candidate) -> result {
+            if (candidate == tail and candidate != dummy)
+                return result::e_tail_reached;
+
+            auto* real_producer = static_cast<producer_t*>(producer);
+            auto* real_dummy = static_cast<producer_t::node_t*>(candidate);
+            if (real_producer->recycle_dummy(real_dummy))
+                return result::e_dummy_reached;
+            return result::e_none;
+
+        }
+
+    public:
+
+        recycle_helper() = delete;
+
+        recycle_helper(const recycle_helper&) = default;
+
+        recycle_helper& operator=(const recycle_helper&) = default;
+
+        template <typename producer_t>
+        recycle_helper(producer_t* producer, void* dummy, void* tail) {
+            _producer = producer;
+            _dummy = dummy;
+            _tail = tail;
+            _recycle_callback = recycle_impl<producer_t>;
+        }
+
+        [[nodiscard]] result recycle(void* candidate) {
+            const result res = _recycle_callback(_producer, _tail, _dummy, candidate);
+            if (res != result::e_none) {
+                _producer = _dummy = _tail = nullptr;
+                _recycle_callback = nullptr;
+            }
+            return res;
+        }
+
+        ~recycle_helper() {
+            _tail = _dummy = _producer = nullptr;
+            _recycle_callback = nullptr;
+        }
+
+    };
+
+    template <typename nodeT, class iteratorT, typename batch_producer_t>
     class batch {
 
         nodeT* _head;
         nodeT* _tail;
-        std::tuple<iteratorArgs...> _args{};
+        nodeT* _dummy;
+        batch_producer_t* _producer{};
 
     public:
 
         explicit batch() =default;
 
-        explicit batch(nodeT* head, nodeT* tail, iteratorArgs&& ... args)
+        explicit batch(nodeT* head, nodeT* tail, nodeT* dummy, batch_producer_t* producer)
             : _head(head)
             , _tail(tail)
-            , _args(args...) {}
+            , _dummy(dummy)
+            , _producer(producer) {}
 
-        typedef batch_iterator_traits<nodeT, iteratorT, iteratorArgs...> iterator_t;
+        typedef batch_iterator_traits<nodeT, iteratorT, batch_producer_t> iterator_t;
 
-        iterator_t begin() { return iterator_t(_head, std::forward<iteratorArgs>(std::get<iteratorArgs>(_args))...); }
-        iterator_t end() { return iterator_t(_tail, std::forward<iteratorArgs>(std::get<iteratorArgs>(_args))...); }
+        iterator_t begin() { return iterator_t(_head, std::forward<batch_producer_t*>(_producer)); }
+        iterator_t end() { return iterator_t(_tail, std::forward<batch_producer_t*>(_producer)); }
 
-        iterator_t begin() const { return iterator_t(_head, std::forward<iteratorArgs>(std::get<iteratorArgs>(_args))...); }
-        iterator_t end() const { return iterator_t(_tail, std::forward<iteratorArgs>(std::get<iteratorArgs>(_args))...); }
+        iterator_t begin() const { return iterator_t(_head, std::forward<batch_producer_t*>(_producer)); }
+        iterator_t end() const { return iterator_t(_tail, std::forward<batch_producer_t*>(_producer)); }
 
-        nodeT* get_head() { return _head; }
-        nodeT* get_tail() { return _tail; }
-    };
-
-    // NOTE: Pushing prev node ptr to dummy data section
-    template <typename node_t>
-    void set_prev_to_dummy(node_t*& prev, node_t*& dummy) {
-        void* mem_ptr = &dummy->_data;
-        auto** data_ptr = static_cast<node_t**>(mem_ptr);
-        *data_ptr = prev;
-    }
-
-    // NOTE: Taking dummy back from batch
-    template <typename queue_t>
-    void eject_dummy(queue_t* dummy_owner) {
-        if (void* mem_ptr = &dummy_owner->_dummy_ptr->_data) [[likely]] {
-            auto** before_dummy = static_cast<queue_t::node_t**>(mem_ptr);
-            (*before_dummy)->_next.store(
-                dummy_owner->_dummy_ptr->_next.load(std::memory_order_relaxed), std::memory_order_relaxed
-            );
+        auto enlist_data() {
+            auto recycler = recycle_helper{_producer, _dummy, _tail};
+            return std::tie(_head, _tail, recycler);
         }
-        if (not dummy_owner->recycle_dummy(dummy_owner->_dummy_ptr))
-            std::cerr << "dummy recycling rejected\n";
-    }
+    };
 
 } // end namespace nukes
 

@@ -54,7 +54,7 @@ private:
         }
     };
 
-    typedef details::batch<node_t, bou_mpmc_iter, mpmc_queue*> batch_t;
+    typedef details::batch<node_t, bou_mpmc_iter, mpmc_queue> batch_t;
 
     node_t*                          _buffer   { nullptr };  // NOTE: Буфер хранения памяти
     const details::constants::word   _capacity { capacityV };
@@ -100,14 +100,14 @@ public:
         do {
             // NOTE: Проверяем, что буфер не пуст
             if (current_head >= current_tail)
-                return batch_t { nullptr, nullptr, this };
+                return batch_t { nullptr, nullptr, nullptr, this };
 
             next_head = current_tail;
         } while (not _head.compare_exchange_weak(current_head, next_head,
                                                  std::memory_order_release,
                                                  std::memory_order_relaxed));
 
-        return batch_t { &_buffer[current_head % _capacity], &_buffer[current_tail % _capacity], this };
+        return batch_t { &_buffer[current_head % _capacity], &_buffer[current_tail % _capacity], nullptr, this };
     }
 
 
