@@ -84,7 +84,19 @@ public:
         if (not _mempool.capture(_dummy_ptr)) return;
         _head = _dummy_ptr;
         _tail.store(_dummy_ptr, std::memory_order_relaxed);
-    } ;
+    };
+
+    ~mpsc_queue() noexcept {
+        while (_head != nullptr) {
+            auto temp = std::exchange(_head,
+                reinterpret_cast<node_t*>(_head->_next.load()));
+            _mempool.sync(temp);
+            if (_tail.load() == temp) {
+                _head = nullptr;
+                _tail.store(nullptr);
+            }
+        }
+    }
 
     /**
      * @details Atomically pushes element to the queue

@@ -83,7 +83,6 @@ public:
 
 DYNAMIC_SPMC_FREELIST_MEMBER()
 ~spmc_freelist() noexcept {
-
     while (_head.load() != nullptr) {
         auto temp = _head.load();
         _head.store(reinterpret_cast<node_t*>(_head.load()->_next.load()));

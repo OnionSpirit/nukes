@@ -96,12 +96,9 @@ public:
 
 DYNAMIC_MPMC_FREELIST_MEMBER()
 ~mpmc_freelist() noexcept {
-
     while (_head.load() != nullptr) {
         auto temp = _head.load();
         _head.store(reinterpret_cast<node_t*>(_head.load()->_next.load()));
-        if (temp == _dummy_ptr)
-            continue;
 
         free(temp);
         if (_tail.load() == temp) {

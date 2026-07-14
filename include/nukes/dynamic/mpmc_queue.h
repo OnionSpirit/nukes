@@ -102,7 +102,18 @@ public:
         return *this;
     }
 
-    ~mpmc_queue() noexcept = default;
+    ~mpmc_queue() noexcept {
+        while (_head.load() != nullptr) {
+            auto temp = _head.load();
+            _head.store(reinterpret_cast<node_t*>(_head.load()->_next.load()));
+
+            _mempool.sync(temp);
+            if (_tail.load() == temp) {
+                _head.store(nullptr);
+                _tail.store(nullptr);
+            }
+        }
+    }
 
     /**
      * @details Atomically pushes element to the queue
