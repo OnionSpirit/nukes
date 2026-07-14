@@ -29,8 +29,6 @@ struct mpsc_queue {
     typedef details::nodes::dyn_node<dataT> node_t;      ///< Node type declaration
     typedef spmc_freelist<node_t> mempool_t;    ///< Memory buffer type
 
-private:
-
     class dyn_mpsc_iter {
 
         mpsc_queue* _queue { nullptr };
@@ -61,8 +59,6 @@ private:
 
     typedef details::batch<node_t, dyn_mpsc_iter, mpsc_queue> batch_t;
 
-    friend details::recycle_helper;
-
 protected:
 
     alignas(64) std::atomic<node_t*> _tail     ;  ///< Tail pointer
@@ -74,7 +70,7 @@ protected:
      * @param node Node instance
      * @return @b True if node was dummy and recycled to queue tail, @b False otherwise
      */
-    [[nodiscard]] bool recycle_dummy(details::misc::argument_ref_t<node_t*> node) noexcept;
+    [[nodiscard]] bool recycle_dummy(details::misc::argument_ref_t<node_t*>) noexcept;
 
 public:
 
@@ -158,7 +154,7 @@ public:
     batch_t pop_batch() noexcept {
         node_t *current_head = _head, *current_tail = _tail.load(std::memory_order_relaxed);
         _head = current_tail;
-        return batch_t { current_head, current_tail, _dummy_ptr, this };
+        return batch_t { current_head, current_tail, this };
     }
 
     /**
@@ -266,7 +262,6 @@ push_node(details::misc::argument_ref_t<node_t*> node) noexcept {
 
     node->_next.store(nullptr, std::memory_order_release);
     node_t* current_tail = _tail.exchange(node, std::memory_order_release);
-    node->_prev = current_tail;
     current_tail->_next.store(std::forward<node_t*>(node), std::memory_order_release);
 }
 

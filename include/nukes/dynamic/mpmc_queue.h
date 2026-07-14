@@ -60,8 +60,6 @@ private:
 
     typedef details::batch<node_t, dyn_mpmc_iter, mpmc_queue> batch_t;
 
-    friend details::recycle_helper;
-
     alignas(64) std::atomic<node_t*> _head     ; ///< Head pointer
     alignas(64) std::atomic<node_t*> _tail     ; ///< Tail pointer
     node_t*                          _dummy_ptr; ///< Dummy helper node
@@ -167,7 +165,7 @@ public:
         } while (not _head.compare_exchange_strong(current_head, current_tail,
                                                  std::memory_order_release,
                                                  std::memory_order_relaxed));
-        return batch_t { current_head, current_tail, _dummy_ptr, this };
+        return batch_t { current_head, current_tail, this };
     }
 
     /**
@@ -231,7 +229,6 @@ push_node(details::misc::argument_ref_t<node_t*> node) noexcept {
 
     node->_next.store(nullptr, std::memory_order_release);
     node_t* current_tail = _tail.exchange(node, std::memory_order_release);
-    node->_prev = current_tail;
     current_tail->_next.store(std::forward<node_t*>(node), std::memory_order_release);
 }
 
@@ -271,7 +268,7 @@ empty() noexcept {
     auto head = _head.load(std::memory_order_acquire);
     if (_tail.compare_exchange_weak(head, head, std::memory_order_release, std::memory_order_relaxed))
         return true;
-    else return false;
+    return false;
 }
 
 

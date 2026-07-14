@@ -39,7 +39,6 @@ protected:
 public:
 
     mempool_t                                _mempool  {};  ///< Memory buffer to allocate nodes from
-    std::optional<details::recycle_helper>   _recycler { std::nullopt };
 
     reg_queue() = default;
 
@@ -81,13 +80,6 @@ public:
     void push_list(details::misc::argument_ref_t<node_t*> lhead, details::misc::argument_ref_t<node_t*> ltail) noexcept;
 
     /**
-     * @details Atomically pushes batch to the tail of the queue (Move Semantics)
-     * @param node Node instance to be pushed
-     */
-    template <typename batch_t>
-    void push_batch(batch_t& batch) noexcept;
-
-    /**
      * @details Atomically pushes node instance to the head of the queue (Move Semantics)
      * @param node Node instance to be pushed
      */
@@ -98,13 +90,6 @@ public:
      * @param node Node instance to be pushed
      */
     void push_list_front(details::misc::argument_ref_t<node_t*> lhead, details::misc::argument_ref_t<node_t*> ltail) noexcept;
-
-    /**
-     * @details Atomically pushes node instance to the head of the queue (Move Semantics)
-     * @param node Node instance to be pushed
-     */
-    template <typename batch_t>
-    void push_batch_front(batch_t& batch) noexcept;
 
     /**
      * @details Atomically releases node to the queue mempool (Move Semantics)
@@ -133,8 +118,6 @@ public:
      * @return @c const ptr to the head
      */
     [[nodiscard]] const node_t* inspect_head() const noexcept;
-
-    [[nodiscard]] bool is_batched() const noexcept { return _recycler.has_value(); }
 
     reg_queue(const reg_queue&) = delete;
 
@@ -236,22 +219,6 @@ push_list(details::misc::argument_ref_t<node_t*> lhead, details::misc::argument_
 }
 
 
-REGULAR_QUEUE_MEMBER(template<typename batch_t> void)
-push_batch(batch_t &batch) noexcept {
-    auto [batch_head, batch_tail, recycler] = batch.enlist_data();
-    if (batch_head == batch_tail)
-        return;
-    _recycler = recycler;
-    if (_tail == nullptr) {
-        _head = details::nodes::cast_node<details::nodes::dyn_reg_node>(batch_head);
-        _tail = static_cast<node_t*>(batch_tail->_prev);
-    } else {
-        _tail->_next = details::nodes::cast_node<details::nodes::dyn_reg_node>(batch_head);
-        _tail = static_cast<node_t*>(batch_tail->_prev);
-    }
-}
-
-
 REGULAR_QUEUE_MEMBER(void)
 push_node_front(details::misc::argument_ref_t<node_t*> node) noexcept {
     if (_tail == nullptr) {
@@ -276,22 +243,6 @@ push_list_front(details::misc::argument_ref_t<node_t*> lhead, details::misc::arg
 }
 
 
-REGULAR_QUEUE_MEMBER(template<typename batch_t> void)
-push_batch_front(batch_t &batch) noexcept {
-    auto [batch_head, batch_tail, recycler] = batch.enlist_data();
-    if (batch_head == batch_tail)
-        return;
-    _recycler = recycler;
-    if (_tail == nullptr) {
-        _head = details::nodes::cast_node<details::nodes::dyn_reg_node>(batch_head);
-        _tail = static_cast<node_t*>(batch_tail->_prev);
-    } else {
-        static_cast<node_t*>(batch_tail->_prev)->_next = _head;
-        _head = details::nodes::cast_node<details::nodes::dyn_reg_node>(batch_head);
-    }
-}
-
-
 REGULAR_QUEUE_MEMBER(auto)
 pop_node() noexcept -> node_t* {
     auto released_node = _head;
@@ -300,16 +251,6 @@ pop_node() noexcept -> node_t* {
 
     _head = _head->_next;
     if (not _head) _tail = nullptr;
-    // NOTE: Recycling dummy from the pushed batch if it is presented
-    if (is_batched()) {
-        const auto rec_res = _recycler->recycle(released_node);
-        if (rec_res == details::recycle_helper::result::e_dummy_reached) {
-            _recycler.reset();
-            return pop_node();
-        }
-        if (rec_res == details::recycle_helper::result::e_tail_reached)
-            _recycler.reset();
-    }
     details::prefetch(_head);
     return std::forward<node_t*>(released_node);
 }
