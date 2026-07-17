@@ -78,7 +78,7 @@ protected:
      * @param node Node instance
      * @return @b True if node was dummy and recycled to queue tail, @b False otherwise
      */
-    [[nodiscard]] bool recycle_dummy(details::misc::argument_ref_t<node_t*>) noexcept;
+    [[nodiscard]] bool recycle_dummy(node_t*) noexcept;
 
 public:
 
@@ -130,19 +130,19 @@ public:
      * @details Atomically pushes node instance to the queue (Move Semantics)
      * @param node Node instance to be pushed
      */
-    void push_node(details::misc::argument_ref_t<node_t*> node) noexcept;
+    void push_node(node_t* node) noexcept;
 
     /**
      * @details Atomically pushes node instance to the head of the queue (Move Semantics)
      * @param node Node instance to be pushed
      */
-    void push_node_front(details::misc::argument_ref_t<node_t*> node) noexcept;
+    void push_node_front(node_t* node) noexcept;
 
     /**
      * @details Atomically releases node to the queue mempool (Move Semantics)
      * @param node Releasing node
      */
-    void release_node(details::misc::argument_ref_t<node_t*> node) noexcept;
+    void release_node(node_t* node) noexcept;
 
     /**
      * @details Atomically pops an node instance from the queue to
@@ -241,13 +241,13 @@ pop(dataT& data) noexcept {
 
 
 DYNAMIC_ROAMING_MPSC_QUEUE_MEMBER(void)
-release_node(details::misc::argument_ref_t<node_t*> node) noexcept {
+release_node(node_t* node) noexcept {
     _mempool.sync(node);
 }
 
 
 DYNAMIC_ROAMING_MPSC_QUEUE_MEMBER(bool)
-recycle_dummy(details::misc::argument_ref_t<node_t*> dummy) noexcept {
+recycle_dummy(node_t* dummy) noexcept {
 
     if (dummy == _dummy_ptr) [[unlikely]] {
         dummy->_next.store(nullptr, std::memory_order_release);
@@ -260,7 +260,7 @@ recycle_dummy(details::misc::argument_ref_t<node_t*> dummy) noexcept {
 
 
 DYNAMIC_ROAMING_MPSC_QUEUE_MEMBER(void)
-push_node(details::misc::argument_ref_t<node_t*> node) noexcept {
+push_node(node_t* node) noexcept {
 
     node->_next.store(nullptr, std::memory_order_release);
     node_t* current_tail = _tail.exchange(node, std::memory_order_release);
@@ -269,7 +269,7 @@ push_node(details::misc::argument_ref_t<node_t*> node) noexcept {
 
 
 DYNAMIC_ROAMING_MPSC_QUEUE_MEMBER(void)
-push_node_front(details::misc::argument_ref_t<node_t*> node) noexcept {
+push_node_front(node_t* node) noexcept {
     node->_next.store(_head.load(), std::memory_order_release);
     _head.store(node, std::memory_order_release);
 }

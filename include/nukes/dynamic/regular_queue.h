@@ -71,31 +71,31 @@ public:
      * @details Atomically pushes node instance to the queue (Move Semantics)
      * @param node Node instance to be pushed
      */
-    void push_node(details::misc::argument_ref_t<node_t*> node) noexcept;
+    void push_node(node_t* node) noexcept;
 
     /**
      * @details Atomically pushes node instance to the head of the queue (Move Semantics)
      * @param node Node instance to be pushed
      */
-    void push_list(details::misc::argument_ref_t<node_t*> lhead, details::misc::argument_ref_t<node_t*> ltail) noexcept;
+    void push_list(node_t* lhead, node_t* ltail) noexcept;
 
     /**
      * @details Atomically pushes node instance to the head of the queue (Move Semantics)
      * @param node Node instance to be pushed
      */
-    void push_node_front(details::misc::argument_ref_t<node_t*> node) noexcept;
+    void push_node_front(node_t* node) noexcept;
 
     /**
      * @details Atomically pushes node instance to the head of the queue (Move Semantics)
      * @param node Node instance to be pushed
      */
-    void push_list_front(details::misc::argument_ref_t<node_t*> lhead, details::misc::argument_ref_t<node_t*> ltail) noexcept;
+    void push_list_front(node_t* lhead, node_t* ltail) noexcept;
 
     /**
      * @details Atomically releases node to the queue mempool (Move Semantics)
      * @param node Releasing node
      */
-    void release_node(details::misc::argument_ref_t<node_t*> node) noexcept;
+    void release_node(node_t* node) noexcept;
 
     /**
      * @details Atomically pops an node instance from the queue to
@@ -188,13 +188,13 @@ pop(dataT& data) noexcept {
 
 
 REGULAR_QUEUE_MEMBER(void)
-release_node(details::misc::argument_ref_t<node_t*> node) noexcept {
+release_node(node_t* node) noexcept {
     _mempool.sync(node);
 }
 
 
 REGULAR_QUEUE_MEMBER(void)
-push_node(details::misc::argument_ref_t<node_t*> node) noexcept {
+push_node(node_t* node) noexcept {
     node->_next = nullptr;
     if (_tail == nullptr) {
         _head = node;
@@ -207,7 +207,7 @@ push_node(details::misc::argument_ref_t<node_t*> node) noexcept {
 
 
 REGULAR_QUEUE_MEMBER(void)
-push_list(details::misc::argument_ref_t<node_t*> lhead, details::misc::argument_ref_t<node_t*> ltail) noexcept {
+push_list(node_t* lhead, node_t* ltail) noexcept {
     ltail->_next = nullptr;
     if (_tail == nullptr) {
         _head = lhead;
@@ -220,7 +220,7 @@ push_list(details::misc::argument_ref_t<node_t*> lhead, details::misc::argument_
 
 
 REGULAR_QUEUE_MEMBER(void)
-push_node_front(details::misc::argument_ref_t<node_t*> node) noexcept {
+push_node_front(node_t* node) noexcept {
     node->_next = _head;
     if (_tail == nullptr) {
         _head = node;
@@ -233,7 +233,7 @@ push_node_front(details::misc::argument_ref_t<node_t*> node) noexcept {
 
 
 REGULAR_QUEUE_MEMBER(void)
-push_list_front(details::misc::argument_ref_t<node_t*> lhead, details::misc::argument_ref_t<node_t*> ltail) noexcept {
+push_list_front(node_t* lhead, node_t* ltail) noexcept {
     ltail->_next = _head;
     if (_tail == nullptr) {
         _head = lhead;

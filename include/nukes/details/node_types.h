@@ -49,13 +49,13 @@ struct dyn_reg_node {
 // NOTE: Casting node from regular queue node to atomic queue
 template <template <typename> typename node_t, typename dataT>
 auto cast_node(dyn_reg_node<dataT>* node) noexcept {
-    return reinterpret_cast<node_t<dataT>*>(node);
+    return std::bit_cast<node_t<dataT>*>(node);
 }
 
 // NOTE: Casting node from atomic queue to regular queue node
 template <template <typename> typename node_t, typename dataT>
 auto cast_node(dyn_node<dataT>* node) noexcept {
-    return reinterpret_cast<node_t<dataT>*>(node);
+    return std::bit_cast<node_t<dataT>*>(node);
 }
 
 // NOTE: Тип узла для структур хранения зарезервированной памяти
