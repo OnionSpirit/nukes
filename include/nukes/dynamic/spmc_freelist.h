@@ -48,6 +48,14 @@ public:
     bool sync(dataT*& data) noexcept;
 
     /**
+     * @details Atomically pushes element to the queue
+     * @param data Data to be pushed
+     * @return @b True if element successfully pushed,
+     * @b False when run out of capacity
+     */
+    bool raw_sync(void* data) noexcept;
+
+    /**
      * @details Atomically pops an element from the queue to the reference
      * from function arg, returns the result of operation
      * @param data Reference to storage of pulled element
@@ -100,6 +108,29 @@ DYNAMIC_SPMC_FREELIST_MEMBER(bool)
 sync(dataT*& data) noexcept {
     data->~dataT();
     auto* new_tail = reinterpret_cast<node_t *>(reinterpret_cast<uint8_t *>(data) -
+        [] { node_t t{}; return reinterpret_cast<uintptr_t>(&t._data) - reinterpret_cast<uintptr_t>(&t); }());
+    new_tail->_next.store(nullptr, std::memory_order_relaxed);
+
+    // NOTE: Setting tail depending on it's state
+    if (_tail == nullptr) [[unlikely]]
+        _tail = new_tail;
+    // NOTE: Standard single producing push back
+    else [[likely]] {
+        _tail->_next.store(new_tail,std::memory_order_release);
+        _tail = new_tail;
+    }
+    // NOTE: Setting head if it is null
+    if (_head.load(std::memory_order_relaxed) == nullptr) [[unlikely]]
+        _head.store(new_tail, std::memory_order_release);
+
+    data = nullptr;
+    return true;
+}
+
+
+DYNAMIC_SPMC_FREELIST_MEMBER(bool)
+raw_sync(void* data) noexcept {
+    auto* new_tail = reinterpret_cast<node_t *>(static_cast<uint8_t *>(data) -
         [] { node_t t{}; return reinterpret_cast<uintptr_t>(&t._data) - reinterpret_cast<uintptr_t>(&t); }());
     new_tail->_next.store(nullptr, std::memory_order_relaxed);
 
