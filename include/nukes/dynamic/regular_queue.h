@@ -221,11 +221,12 @@ push_list(details::misc::argument_ref_t<node_t*> lhead, details::misc::argument_
 
 REGULAR_QUEUE_MEMBER(void)
 push_node_front(details::misc::argument_ref_t<node_t*> node) noexcept {
+    node->_next = _head;
     if (_tail == nullptr) {
         _head = node;
         _tail = node;
+        node->_next = nullptr;
     } else {
-        node->_next = _head;
         _head = node;
     }
 }
@@ -233,11 +234,12 @@ push_node_front(details::misc::argument_ref_t<node_t*> node) noexcept {
 
 REGULAR_QUEUE_MEMBER(void)
 push_list_front(details::misc::argument_ref_t<node_t*> lhead, details::misc::argument_ref_t<node_t*> ltail) noexcept {
+    ltail->_next = _head;
     if (_tail == nullptr) {
         _head = lhead;
         _tail = ltail;
+        ltail->_next = nullptr;
     } else {
-        ltail->_next = _head;
         _head = lhead;
     }
 }
