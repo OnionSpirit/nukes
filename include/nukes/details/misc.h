@@ -19,41 +19,16 @@ namespace nukes::details::misc {
     template<typename T>
     class argument {
 
-        // NOTE: Проверка может ли объект типа копироваться или только переноситься
-        static constexpr bool is_rvalue_type =
-                not (std::is_copy_assignable_v<std::decay_t<T>> or std::is_copy_constructible_v<std::decay_t<T>>)
-                and (std::is_move_assignable_v<std::decay_t<T>> or std::is_move_constructible_v<std::decay_t<T>>);
-
         // NOTE: Проверка является ли тип меньше чем размер машинного слова
         static constexpr bool is_short_type = sizeof(T) <= constants::word_size;
 
     public:
 
-        typedef std::conditional_t<is_rvalue_type, T &&,
-                std::conditional_t<is_short_type, T, T &>
-        > type;
+        typedef std::conditional_t<is_short_type, T, T &&> type;
     };
 
     template<typename T>
     using argument_t = argument<T>::type;
-
-    // NOTE: Вспомогательный тип для определения наиболее дешевой по памяти сигнатуры функций
-    template<typename T>
-    class argument_ref {
-
-        // NOTE: Проверка может ли объект типа копироваться или только переноситься
-        static constexpr bool is_rvalue_type =
-                not (std::is_copy_assignable_v<std::decay_t<T>> or std::is_copy_constructible_v<std::decay_t<T>>)
-                and (std::is_move_assignable_v<std::decay_t<T>> or std::is_move_constructible_v<std::decay_t<T>>);
-
-    public:
-
-        typedef std::conditional_t<is_rvalue_type, T &&, T&> type;
-    };
-
-    template<typename T>
-    using argument_ref_t = argument_ref<T>::type;
-
 
     template <typename dataT, std::size_t alignmentV = 8>
     struct aligned_data {
